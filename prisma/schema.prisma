@@ -39,10 +39,15 @@ model Company {
   // Relations
   users           User[]
   accounts        Account[]
+  journalEntries  JournalEntry[]
+  ledgerEntries   LedgerEntry[]
   customers       Customer[]
   vendors         Vendor[]
   invoices        Invoice[]
   payments        Payment[]
+  inventoryTransactions InventoryTransaction[]
+  costCenters     CostCenter[]
+  exchangeRates   ExchangeRate[]
   inventoryItems   InventoryItem[]
   chatSessions    ChatSession[]
   auditLogs       AuditLog[]
@@ -134,7 +139,7 @@ model Account {
   companyId    String
   parent       Account?   @relation("AccountHierarchy", fields: [parentId], references: [id])
   children     Account[]  @relation("AccountHierarchy")
-  journalEntries JournalEntry[]
+  journalLines JournalLine[]
   ledgerEntries  LedgerEntry[]
 
   @@unique([companyId, code])
@@ -378,7 +383,7 @@ model Invoice {
   vendor       Vendor?   @relation(fields: [vendorId], references: [id])
 
   lines        InvoiceLine[]
-  payments     Payment[]
+  payments     PaymentApplication[]
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, status])
