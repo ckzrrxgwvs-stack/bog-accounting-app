@@ -1,0 +1,9 @@
+# Free tier: https://www.netlify.com — alternative to Vercel
+[build]
+  command = "pnpm run build:ci"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

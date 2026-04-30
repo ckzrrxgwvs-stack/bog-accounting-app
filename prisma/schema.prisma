@@ -1,0 +1,749 @@
+// Professional Accounting System - Database Schema
+// Based on SPEC.md - Complete accounting application
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// CORE ENTITIES
+// ============================================
+
+model Company {
+  id           String   @id @default(cuid())
+  name         String
+  legalName    String?
+  country      String   @default("US") // "US" or "MX"
+  currency     String   @default("USD") // "USD" or "MXN"
+  fiscalYearStart Int   @default(1) // 1 = January, 12 = December
+  taxId        String?
+  address      String?
+  phone        String?
+  email        String?
+  logo         String?
+
+  // Settings
+  useInventory      Boolean @default(false)
+  usePayroll       Boolean @default(false)
+  useMultiCurrency Boolean @default(false)
+  useCostCenters   Boolean @default(false)
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  users           User[]
+  accounts        Account[]
+  customers       Customer[]
+  vendors         Vendor[]
+  invoices        Invoice[]
+  payments        Payment[]
+  inventoryItems   InventoryItem[]
+  chatSessions    ChatSession[]
+  auditLogs       AuditLog[]
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  role          UserRoleType
+
+  // MFA
+  mfaEnabled    Boolean  @default(true)
+  mfaSecret     String?
+
+  // Profile
+  avatar        String?
+  phone         String?
+  isActive      Boolean  @default(true)
+  lastLoginAt   DateTime?
+
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  company       Company   @relation(fields: [companyId], references: [id])
+  companyId     String
+  sessions      Session[]
+  chatSessions  ChatSession[]
+  messages      ChatMessage[]
+  auditLogs     AuditLog[]
+}
+
+enum UserRoleType {
+  PRESIDENT   // Full access
+  CFO         // Full financial access
+  CONTROLLER  // Accounting focus
+  ACCOUNTANT  // Transaction entry
+  AP_CLERK    // Accounts Payable only
+  AR_CLERK    // Accounts Receivable only
+  READONLY    // View only
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  // Relations
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// ACCOUNTING ENTITIES
+// ============================================
+
+model Account {
+  id           String   @id @default(cuid())
+  code         String   // e.g., "1100" for Cash
+  name         String
+  type         AccountType
+  subtype      String?
+  description  String?
+
+  // Hierarchy
+  parentId     String?
+  level        Int      @default(0) // 0 = top level, 1 = sub-account, etc.
+  isActive     Boolean  @default(true)
+
+  // Cash Flow Category (for cash flow statement)
+  cashFlowCategory String? // Operating, Investing, Financing
+
+  // Allow posting
+  allowPosting Boolean  @default(true)
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  company      Company    @relation(fields: [companyId], references: [id])
+  companyId    String
+  parent       Account?   @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children     Account[]  @relation("AccountHierarchy")
+  journalEntries JournalEntry[]
+  ledgerEntries  LedgerEntry[]
+
+  @@unique([companyId, code])
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+  COST_OF_GOODS_SOLD
+}
+
+model JournalEntry {
+  id           String   @id @default(cuid())
+  entryNumber  Int      @unique @default(autoincrement())
+  date         DateTime
+  description  String
+  reference    String?
+
+  // Status
+  status       EntryStatus @default(DRAFT)
+  isRecurring  Boolean  @default(false)
+  recurringId  String?
+
+  // Approval
+  approvedBy   String?
+  approvedAt   DateTime?
+
+  // Period
+  period       Int      // 1-12 for month
+  year         Int
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    String
+
+  // Relations
+  company      Company      @relation(fields: [companyId], references: [id])
+  companyId    String
+  lines        JournalLine[]
+
+  @@index([companyId, date])
+  @@index([companyId, period, year])
+}
+
+enum EntryStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  POSTED
+  REVERSED
+  DELETED
+}
+
+model JournalLine {
+  id           String   @id @default(cuid())
+  description  String?
+
+  // Amounts
+  debit        Decimal?  @db.Decimal(18, 2)
+  credit       Decimal?  @db.Decimal(18, 2)
+
+  // Dimension
+  costCenterId String?
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  journalEntryId String
+
+  account     Account      @relation(fields: [accountId], references: [id])
+  accountId   String
+
+  ledgerEntry LedgerEntry?
+}
+
+model LedgerEntry {
+  id           String   @id @default(cuid())
+  date         DateTime
+  transactionId String  // Links to source (Invoice, Payment, JournalEntry)
+  transactionType String // INVOICE, PAYMENT, JOURNAL, ADJUSTMENT
+  description  String
+
+  // Amounts
+  debit        Decimal  @db.Decimal(18, 2)
+  credit       Decimal  @db.Decimal(18, 2)
+
+  // Balance tracking
+  runningBalance Decimal @db.Decimal(18, 2)
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+
+  // Relations
+  company      Company    @relation(fields: [companyId], references: [id])
+  companyId    String
+
+  account      Account    @relation(fields: [accountId], references: [id])
+  accountId    String
+
+  journalLine  JournalLine? @relation(fields: [journalLineId], references: [id])
+  journalLineId String?  @unique
+
+  @@index([companyId, accountId, date])
+}
+
+// ============================================
+// CUSTOMERS & VENDORS
+// ============================================
+
+model Customer {
+  id           String   @id @default(cuid())
+  code         String
+  name         String
+  email        String?
+  phone        String?
+  taxId        String?  // RFC for Mexico, EIN/SSN for USA
+
+  // Address
+  address      String?
+  city         String?
+  state        String?
+  zipCode      String?
+  country      String   @default("US")
+
+  // Payment terms
+  creditLimit  Decimal?  @db.Decimal(18, 2)
+  paymentTerms Int       @default(30) // days
+  discountPercent Decimal? @db.Decimal(5, 2)
+
+  // Balance tracking
+  balance      Decimal   @default(0) @db.Decimal(18, 2)
+
+  // Status
+  isActive     Boolean  @default(true)
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  company      Company   @relation(fields: [companyId], references: [id])
+  companyId    String
+  invoices     Invoice[]
+
+  @@unique([companyId, code])
+}
+
+model Vendor {
+  id           String   @id @default(cuid())
+  code         String
+  name         String
+  email        String?
+  phone        String?
+  taxId        String?  // RFC for Mexico, EIN for USA
+
+  // Address
+  address      String?
+  city         String?
+  state        String?
+  zipCode      String?
+  country      String   @default("US")
+
+  // Payment terms
+  paymentTerms Int      @default(30)
+  discountPercent Decimal? @db.Decimal(5, 2)
+
+  // 1099 category (USA)
+  tax1099Category String?
+
+  // Balance tracking
+  balance      Decimal   @default(0) @db.Decimal(18, 2)
+
+  // Status
+  isActive     Boolean  @default(true)
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  company      Company   @relation(fields: [companyId], references: [id])
+  companyId    String
+  invoices     Invoice[]
+
+  @@unique([companyId, code])
+}
+
+// ============================================
+// INVOICES & PAYMENTS
+// ============================================
+
+model Invoice {
+  id           String   @id @default(cuid())
+  invoiceNumber String
+  type         InvoiceType
+
+  // Parties
+  customerId   String?   // For AR
+  vendorId     String?   // For AP
+
+  // Dates
+  issueDate    DateTime
+  dueDate      DateTime
+
+  // Amounts
+  subtotal     Decimal   @db.Decimal(18, 2)
+  taxAmount    Decimal   @default(0) @db.Decimal(18, 2)
+  discountAmount Decimal  @default(0) @db.Decimal(18, 2)
+  total        Decimal   @db.Decimal(18, 2)
+  paidAmount   Decimal   @default(0) @db.Decimal(18, 2)
+  balance      Decimal   @db.Decimal(18, 2)
+
+  // Status
+  status       InvoiceStatus @default(DRAFT)
+
+  // CFDI (Mexico)
+  cfdiUuid     String?
+  cfdiSatId    String?
+  cfdiStatus   String?
+
+  // Notes
+  notes        String?
+  terms        String?
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  company      Company   @relation(fields: [companyId], references: [id])
+  companyId    String
+
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  vendor       Vendor?   @relation(fields: [vendorId], references: [id])
+
+  lines        InvoiceLine[]
+  payments     Payment[]
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId, status])
+  @@index([companyId, customerId])
+  @@index([companyId, vendorId])
+}
+
+enum InvoiceType {
+  AR_INVOICE      // Accounts Receivable (sales)
+  AP_INVOICE      // Accounts Payable (purchases)
+  AR_CREDIT_MEMO  // Credit memo
+  AP_CREDIT_MEMO  // Vendor credit
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+  CFDI_PENDING    // Mexico specific
+  CFDI_STAMPED
+}
+
+model InvoiceLine {
+  id           String   @id @default(cuid())
+  description  String
+  quantity     Decimal  @db.Decimal(18, 4)
+  unitPrice    Decimal  @db.Decimal(18, 4)
+  discount     Decimal  @default(0) @db.Decimal(18, 2)
+  total        Decimal  @db.Decimal(18, 2)
+
+  // Tax
+  taxRate      Decimal?  @db.Decimal(5, 2)
+  taxCode      String?
+
+  // Inventory
+  inventoryItemId String?
+
+  // Relations
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId    String
+
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+}
+
+model Payment {
+  id           String   @id @default(cuid())
+  paymentNumber String
+  date         DateTime
+  amount       Decimal  @db.Decimal(18, 2)
+  method       PaymentMethod
+
+  // Reference
+  reference    String?
+  checkNumber  String?
+
+  // Status
+  status       PaymentStatus @default(PENDING)
+
+  // Applied amount
+  appliedAmount Decimal @default(0) @db.Decimal(18, 2)
+
+  // Notes
+  notes        String?
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  company      Company   @relation(fields: [companyId], references: [id])
+  companyId    String
+
+  invoices     PaymentApplication[]
+}
+
+enum PaymentMethod {
+  CASH
+  CHECK
+  WIRE_TRANSFER
+  CREDIT_CARD
+  ACH
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSED
+  VOID
+}
+
+// Payment application to invoices
+model PaymentApplication {
+  id           String   @id @default(cuid())
+  amount       Decimal  @db.Decimal(18, 2)
+
+  // Relations
+  payment      Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  paymentId    String
+
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id])
+  invoiceId    String
+
+  // Discounts
+  discountTaken Decimal? @db.Decimal(18, 2)
+
+  createdAt    DateTime @default(now())
+}
+
+// ============================================
+// INVENTORY
+// ============================================
+
+model InventoryItem {
+  id           String   @id @default(cuid())
+  sku          String
+  name         String
+  description  String?
+
+  // Category
+  category     String?
+
+  // Units
+  unit         String   @default("unit") // unit, piece, kg, etc.
+
+  // Costs
+  costMethod   CostMethod @default(AVERAGE)
+  standardCost Decimal   @db.Decimal(18, 4)
+  lastCost     Decimal?  @db.Decimal(18, 4)
+
+  // Inventory
+  quantityOnHand Decimal @default(0) @db.Decimal(18, 4)
+  reorderPoint   Decimal @default(0) @db.Decimal(18, 4)
+
+  // Pricing
+  listPrice    Decimal  @db.Decimal(18, 2)
+
+  // Active
+  isActive     Boolean  @default(true)
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  company      Company   @relation(fields: [companyId], references: [id])
+  companyId    String
+
+  invoiceLines InvoiceLine[]
+  transactions InventoryTransaction[]
+
+  @@unique([companyId, sku])
+}
+
+enum CostMethod {
+  FIFO
+  LIFO
+  AVERAGE
+}
+
+model InventoryTransaction {
+  id           String   @id @default(cuid())
+  type         InventoryTransactionType
+  date         DateTime
+  quantity     Decimal  @db.Decimal(18, 4)
+  unitCost     Decimal  @db.Decimal(18, 4)
+  totalCost    Decimal  @db.Decimal(18, 4)
+
+  reference    String?
+  notes        String?
+
+  // Running inventory
+  runningQuantity Decimal @db.Decimal(18, 4)
+  runningValue    Decimal @db.Decimal(18, 2)
+
+  createdAt    DateTime @default(now())
+
+  // Relations
+  item         InventoryItem @relation(fields: [itemId], references: [id])
+  itemId       String
+
+  company      Company @relation(fields: [companyId], references: [id])
+  companyId    String
+}
+
+enum InventoryTransactionType {
+  PURCHASE
+  SALE
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  RETURN_IN
+  RETURN_OUT
+}
+
+// ============================================
+// AI CPA CHAT
+// ============================================
+
+model ChatSession {
+  id           String   @id @default(cuid())
+  title        String?
+
+  // Status
+  isActive     Boolean  @default(true)
+
+  // Context (stored for AI)
+  contextSnapshot String? // JSON snapshot of company data
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  endedAt      DateTime?
+
+  // Relations
+  user         User     @relation(fields: [userId], references: [id])
+  userId       String
+
+  company      Company  @relation(fields: [companyId], references: [id])
+  companyId    String
+
+  messages     ChatMessage[]
+}
+
+model ChatMessage {
+  id           String   @id @default(cuid())
+  role         MessageRole
+
+  content      String   @db.Text
+  tokens       Int?     // Token count
+
+  // AI specific
+  model        String?
+  latency      Int?     // milliseconds
+
+  // Attachments (reports, etc.)
+  attachments  Json?    // Array of {type, data, description}
+
+  // Timestamps
+  createdAt    DateTime @default(now())
+
+  // Relations
+  session      ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId    String
+
+  user         User?    @relation(fields: [userId], references: [id])
+  userId       String?
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  action       AuditAction
+
+  // What was affected
+  module       String   // "invoice", "journal", "user", etc.
+  resourceId   String?
+  resourceType String?
+
+  // Changes made
+  changes      Json?    // {before, after}
+
+  // Context
+  ipAddress    String?
+  userAgent    String?
+
+  // Result
+  success      Boolean  @default(true)
+  errorMessage String?
+
+  // Timestamp
+  timestamp    DateTime @default(now())
+
+  // Relations
+  company      Company  @relation(fields: [companyId], references: [id])
+  companyId    String
+
+  user         User?    @relation(fields: [userId], references: [id])
+  userId       String?
+
+  @@index([companyId, module])
+  @@index([companyId, userId])
+  @@index([companyId, timestamp])
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  VIEW
+  EXPORT
+  LOGIN
+  LOGOUT
+  FAILED_LOGIN
+  PERMISSION_DENIED
+  API_CALL
+}
+
+// ============================================
+// COST CENTERS (Optional)
+// ============================================
+
+model CostCenter {
+  id           String   @id @default(cuid())
+  code         String
+  name         String
+  description  String?
+
+  // Hierarchy
+  parentId     String?
+  type         CostCenterType @default(DEPARTMENT)
+
+  isActive     Boolean  @default(true)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  company      Company  @relation(fields: [companyId], references: [id])
+  companyId    String
+
+  parent       CostCenter? @relation("CostCenterHierarchy", fields: [parentId], references: [id])
+  children     CostCenter[] @relation("CostCenterHierarchy")
+
+  @@unique([companyId, code])
+}
+
+enum CostCenterType {
+  DEPARTMENT
+  PROJECT
+  PRODUCT_LINE
+  REGION
+}
+
+// ============================================
+// EXCHANGE RATES (Multi-currency)
+// ============================================
+
+model ExchangeRate {
+  id           String   @id @default(cuid())
+  fromCurrency String
+  toCurrency   String
+  rate         Decimal  @db.Decimal(18, 6)
+  date         DateTime
+
+  // Source
+  source       String?  // "ECB", "BANXICO", "MANUAL"
+
+  isActive     Boolean  @default(true)
+
+  createdAt    DateTime @default(now())
+
+  // Relations
+  company      Company  @relation(fields: [companyId], references: [id])
+  companyId    String
+
+  @@unique([companyId, fromCurrency, toCurrency, date])
+}

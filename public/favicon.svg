@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none">
+  <rect width="80" height="80" rx="14" fill="#0c0c0d"/>
+  <!-- Isometric cube mark (simplified) -->
+  <path fill="#fafafa" stroke="#fff" stroke-width="0.8" d="M40 14 62 27 40 40 18 27z"/>
+  <path fill="#e4e4e7" stroke="#fff" stroke-width="0.8" d="M18 27 40 40 40 66 18 53z"/>
+  <path fill="#f4f4f5" stroke="#fff" stroke-width="0.8" d="M62 27 40 40 40 66 62 53z"/>
+  <path fill="#3b82f6" d="M40 27 51 33 40 39 29 33z"/>
+</svg>
