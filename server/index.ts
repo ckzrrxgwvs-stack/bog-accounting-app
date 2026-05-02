@@ -14,6 +14,7 @@ import { customersRouter } from './routes/customers';
 import { vendorsRouter } from './routes/vendors';
 import { paymentsRouter } from './routes/payments';
 import { companyRouter } from './routes/company';
+import { inventoryRouter } from './routes/inventory';
 
 config();
 
@@ -36,6 +37,7 @@ app.use('/api/customers', customersRouter);
 app.use('/api/vendors', vendorsRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/company', companyRouter);
+app.use('/api/inventory', inventoryRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

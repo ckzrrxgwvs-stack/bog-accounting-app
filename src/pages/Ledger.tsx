@@ -1,6 +1,6 @@
 // General Ledger — journal entries (BOG ledger workspace)
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Filter, ChevronDown, ChevronRight, Eye, Edit, Trash2 } from 'lucide-react';
 import {
@@ -13,13 +13,14 @@ import {
   ledgerTdNum,
   ledgerRow,
 } from '@/components/layout/ModuleWorkspace';
+import { api } from '@/services/api';
 
 interface JournalEntryRow {
   id: string;
   entryNumber: number;
   date: string;
   description: string;
-  status: 'DRAFT' | 'APPROVED' | 'POSTED';
+  status: string;
   totalDebit: number;
   totalCredit: number;
 }
@@ -31,20 +32,78 @@ export function Ledger() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('4');
   const [selectedYear, setSelectedYear] = useState('2026');
+  const [entries, setEntries] = useState<JournalEntryRow[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const entries: JournalEntryRow[] = [
-    { id: '1', entryNumber: 1001, date: '2026-04-28', description: 'Rent payment - April 2026', status: 'POSTED', totalDebit: 3500, totalCredit: 3500 },
-    { id: '2', entryNumber: 1002, date: '2026-04-27', description: 'Sales revenue - Invoice #1024', status: 'POSTED', totalDebit: 5800, totalCredit: 5800 },
-    { id: '3', entryNumber: 1003, date: '2026-04-26', description: 'Office supplies purchase', status: 'APPROVED', totalDebit: 450.5, totalCredit: 450.5 },
-    { id: '4', entryNumber: 1004, date: '2026-04-25', description: 'Utilities payment - Electric', status: 'POSTED', totalDebit: 890.25, totalCredit: 890.25 },
-    { id: '5', entryNumber: 1005, date: '2026-04-24', description: 'Payroll - Bi-weekly', status: 'POSTED', totalDebit: 12500, totalCredit: 12500 },
-    { id: '6', entryNumber: 1006, date: '2026-04-23', description: 'Equipment purchase', status: 'DRAFT', totalDebit: 2500, totalCredit: 2500 },
-  ];
+  const periodRange = useMemo(() => {
+    const month = Number(selectedPeriod);
+    const year = Number(selectedYear);
+    const start = new Date(year, month - 1, 1);
+    const end = new Date(year, month, 0);
+    return {
+      startDate: start.toISOString().slice(0, 10),
+      endDate: end.toISOString().slice(0, 10),
+    };
+  }, [selectedPeriod, selectedYear]);
 
-  const statusStyles = {
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const res = await api.getJournalEntries({
+        startDate: periodRange.startDate,
+        endDate: periodRange.endDate,
+      });
+      if (cancelled) return;
+      if (!res.success || !res.data) {
+        setLoadError(res.error ?? 'Could not load journal entries');
+        setEntries([]);
+        setLoading(false);
+        return;
+      }
+      const payload = res.data as {
+        journalEntries?: {
+          id: string;
+          entryNumber: string;
+          date: string;
+          description: string;
+          status: string;
+          lines?: { debit: number; credit: number }[];
+        }[];
+      };
+      const raw = payload.journalEntries ?? [];
+      const mapped: JournalEntryRow[] = raw.map((je) => {
+        const deb =
+          je.lines?.reduce((s, l) => s + (Number(l.debit) || 0), 0) ?? 0;
+        const cred =
+          je.lines?.reduce((s, l) => s + (Number(l.credit) || 0), 0) ?? 0;
+        return {
+          id: je.id,
+          entryNumber: Number(je.entryNumber) || 0,
+          date: je.date,
+          description: je.description,
+          status: je.status,
+          totalDebit: deb,
+          totalCredit: cred,
+        };
+      });
+      setEntries(mapped);
+      setLoadError(null);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [periodRange.startDate, periodRange.endDate]);
+
+  const statusStyles: Record<string, string> = {
     DRAFT: 'bg-zinc-100 text-zinc-700',
+    PENDING_APPROVAL: 'bg-sky-50 text-sky-800',
     APPROVED: 'bg-sky-50 text-sky-800',
     POSTED: 'bg-emerald-50 text-emerald-800',
+    REVERSED: 'bg-amber-50 text-amber-900',
+    DELETED: 'bg-zinc-100 text-zinc-400',
   };
 
   const formatCurrency = (amount: number) =>
@@ -64,6 +123,12 @@ export function Ledger() {
             <option value="4">April</option>
             <option value="5">May</option>
             <option value="6">June</option>
+            <option value="7">July</option>
+            <option value="8">August</option>
+            <option value="9">September</option>
+            <option value="10">October</option>
+            <option value="11">November</option>
+            <option value="12">December</option>
           </select>
           <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className={controlClass}>
             <option value="2026">2026</option>
@@ -79,6 +144,12 @@ export function Ledger() {
         </>
       }
     >
+      {loadError && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {loadError} — showing empty list.
+        </div>
+      )}
+
       <div className="bog-statement-card mb-6">
         <button
           type="button"
@@ -96,16 +167,16 @@ export function Ledger() {
             <div className="grid grid-cols-1 gap-4 pt-4 md:grid-cols-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-zinc-500">Status</label>
-                <select className={`w-full ${controlClass}`}>
+                <select className={`w-full ${controlClass}`} disabled>
                   <option value="">All statuses</option>
                   <option value="DRAFT">Draft</option>
-                  <option value="APPROVED">Approved</option>
+                  <option value="PENDING_APPROVAL">Pending approval</option>
                   <option value="POSTED">Posted</option>
                 </select>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-zinc-500">Account</label>
-                <select className={`w-full ${controlClass}`}>
+                <select className={`w-full ${controlClass}`} disabled>
                   <option value="">All accounts</option>
                   <option value="1100">1100 — Cash</option>
                   <option value="1200">1200 — Accounts Receivable</option>
@@ -116,7 +187,7 @@ export function Ledger() {
                 <label className="mb-1 block text-xs font-medium text-zinc-500">Search</label>
                 <div className="relative">
                   <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                  <input type="text" placeholder="Search entries…" className={`w-full pl-10 ${controlClass}`} />
+                  <input type="text" placeholder="Search entries…" className={`w-full pl-10 ${controlClass}`} disabled />
                 </div>
               </div>
             </div>
@@ -139,40 +210,58 @@ export function Ledger() {
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
-                <tr key={entry.id} className={ledgerRow}>
-                  <td className="px-4 py-3 font-figures text-sm font-semibold text-bog-ink">{entry.entryNumber}</td>
-                  <td className="px-4 py-3 font-figures text-sm text-zinc-600">{entry.date}</td>
-                  <td className="px-4 py-3 text-sm text-bog-ink">{entry.description}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${statusStyles[entry.status]}`}>
-                      {entry.status}
-                    </span>
-                  </td>
-                  <td className={`px-4 py-3 text-right ${ledgerTdNum}`}>{formatCurrency(entry.totalDebit)}</td>
-                  <td className={`px-4 py-3 text-right ${ledgerTdNum}`}>{formatCurrency(entry.totalCredit)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-1">
-                      <button type="button" className="rounded-md p-1.5 text-zinc-400 hover:bg-bog-sheet hover:text-bog-ink" title="View">
-                        <Eye size={16} />
-                      </button>
-                      <button type="button" className="rounded-md p-1.5 text-zinc-400 hover:bg-bog-sheet hover:text-bog-ink" title="Edit">
-                        <Edit size={16} />
-                      </button>
-                      <button type="button" className="rounded-md p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600" title="Delete">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+              {loading ? (
+                <tr className={ledgerRow}>
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-zinc-500">
+                    Loading journal entries…
                   </td>
                 </tr>
-              ))}
+              ) : entries.length === 0 ? (
+                <tr className={ledgerRow}>
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-zinc-500">
+                    No entries for this period.
+                  </td>
+                </tr>
+              ) : (
+                entries.map((entry) => (
+                  <tr key={entry.id} className={ledgerRow}>
+                    <td className="px-4 py-3 font-figures text-sm font-semibold text-bog-ink">{entry.entryNumber}</td>
+                    <td className="px-4 py-3 font-figures text-sm text-zinc-600">{entry.date}</td>
+                    <td className="px-4 py-3 text-sm text-bog-ink">{entry.description}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${statusStyles[entry.status] ?? 'bg-zinc-100 text-zinc-700'}`}
+                      >
+                        {entry.status}
+                      </span>
+                    </td>
+                    <td className={`px-4 py-3 text-right ${ledgerTdNum}`}>{formatCurrency(entry.totalDebit)}</td>
+                    <td className={`px-4 py-3 text-right ${ledgerTdNum}`}>{formatCurrency(entry.totalCredit)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1">
+                        <button type="button" className="rounded-md p-1.5 text-zinc-400 hover:bg-bog-sheet hover:text-bog-ink" title="View">
+                          <Eye size={16} />
+                        </button>
+                        <button type="button" className="rounded-md p-1.5 text-zinc-400 hover:bg-bog-sheet hover:text-bog-ink" title="Edit">
+                          <Edit size={16} />
+                        </button>
+                        <button type="button" className="rounded-md p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600" title="Delete">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="font-figures text-sm text-zinc-500">Showing 1–6 of 6 entries</p>
+        <p className="font-figures text-sm text-zinc-500">
+          {loading ? '—' : `Showing ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}`}
+        </p>
         <div className="flex items-center gap-2">
           <button
             type="button"

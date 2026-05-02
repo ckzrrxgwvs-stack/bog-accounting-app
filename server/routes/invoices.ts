@@ -1,128 +1,323 @@
-// API routes for Invoices (AR/AP)
-
 import { Router } from 'express';
+import { InvoiceStatus, InvoiceType, Prisma } from '@prisma/client';
+import { prisma } from '../lib/prisma';
+import { useDatabase } from '../lib/dbMode';
+import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
+import { dec } from '../lib/serialize';
 
 const router = Router();
 
-// Mock invoice data
 const mockInvoices = [
-  { id: '1', number: 'INV-2026-1024', type: 'AR_INVOICE', customer: 'Acme Corporation', amount: 5200, balance: 5200, status: 'SENT', dueDate: '2026-05-20' },
-  { id: '2', number: 'INV-2026-1023', type: 'AR_INVOICE', customer: 'TechStart Inc', amount: 12500, balance: 0, status: 'PAID', dueDate: '2026-05-18' },
-  { id: '3', number: 'INV-2026-1022', type: 'AR_INVOICE', customer: 'Global Ltd', amount: 8900, balance: 3900, status: 'PARTIAL', dueDate: '2026-04-30' },
-  { id: '4', number: 'INV-2026-1021', type: 'AR_INVOICE', customer: 'Innovation Co', amount: 3500, balance: 3500, status: 'OVERDUE', dueDate: '2026-04-25' },
-  { id: '5', number: 'INV-2026-1020', type: 'AR_INVOICE', customer: 'Data Systems', amount: 7500, balance: 7500, status: 'SENT', dueDate: '2026-05-05' },
-  { id: '6', number: 'AP-2026-001', type: 'AP_INVOICE', vendor: 'Office Depot', amount: 1250, balance: 1250, status: 'PENDING', dueDate: '2026-05-25' },
-  { id: '7', number: 'AP-2026-002', type: 'AP_INVOICE', vendor: 'Tech Solutions', amount: 3500, balance: 3500, status: 'APPROVED', dueDate: '2026-05-22' },
-  { id: '8', number: 'AP-2026-003', type: 'AP_INVOICE', vendor: 'Amazon Business', amount: 890.50, balance: 890.50, status: 'PENDING', dueDate: '2026-05-20' },
-  { id: '9', number: 'AP-2026-004', type: 'AP_INVOICE', vendor: 'Microsoft', amount: 2200, balance: 0, status: 'PAID', dueDate: '2026-05-18' },
+  { id: '1', number: 'INV-2026-1024', type: 'AR_INVOICE', customer: 'Acme Corporation', vendor: '', amount: 5200, balance: 5200, status: 'SENT', dueDate: '2026-05-20', date: '2026-04-20', paid: 0 },
+  { id: '6', number: 'AP-2026-001', type: 'AP_INVOICE', customer: '', vendor: 'Office Depot', amount: 1250, balance: 1250, status: 'DRAFT', dueDate: '2026-05-25', date: '2026-04-25', paid: 0 },
 ];
 
-// GET /api/invoices - List all invoices
-router.get('/', (req, res) => {
+function mapInvoiceList(i: {
+  id: string;
+  invoiceNumber: string;
+  type: InvoiceType;
+  status: InvoiceStatus;
+  issueDate: Date;
+  total: unknown;
+  paidAmount: unknown;
+  balance: unknown;
+  dueDate: Date;
+  customer: { name: string } | null;
+  vendor: { name: string } | null;
+}) {
+  const paid = dec(i.paidAmount as never);
+  const total = dec(i.total as never);
+  return {
+    id: i.id,
+    number: i.invoiceNumber,
+    invoiceNumber: i.invoiceNumber,
+    type: i.type,
+    customer: i.customer?.name ?? '',
+    vendor: i.vendor?.name ?? '',
+    amount: total,
+    paid,
+    balance: dec(i.balance as never),
+    status: i.status,
+    date: i.issueDate.toISOString().slice(0, 10),
+    dueDate: i.dueDate.toISOString().slice(0, 10),
+  };
+}
+
+// GET /api/invoices
+router.get('/', async (req, res) => {
   const { type, status } = req.query;
 
-  let invoices = [...mockInvoices];
-
-  if (type === 'AR') {
-    invoices = invoices.filter(i => i.type === 'AR_INVOICE');
-  } else if (type === 'AP') {
-    invoices = invoices.filter(i => i.type === 'AP_INVOICE');
+  if (!useDatabase()) {
+    let invoices = [...mockInvoices].map((m) => ({
+      ...m,
+      invoiceNumber: m.number,
+      paid: m.paid ?? 0,
+      date: m.date ?? new Date().toISOString().slice(0, 10),
+    }));
+    if (type === 'AR') invoices = invoices.filter((i) => i.type === 'AR_INVOICE');
+    if (type === 'AP') invoices = invoices.filter((i) => i.type === 'AP_INVOICE');
+    if (status) invoices = invoices.filter((i) => i.status === status);
+    res.json({ invoices });
+    return;
   }
 
-  if (status) {
-    invoices = invoices.filter(i => i.status === status);
+  try {
+    const company = await getOrCreateDefaultCompany();
+    const where: Prisma.InvoiceWhereInput = { companyId: company.id };
+    if (type === 'AR') where.type = { in: ['AR_INVOICE', 'AR_CREDIT_MEMO'] };
+    if (type === 'AP') where.type = { in: ['AP_INVOICE', 'AP_CREDIT_MEMO'] };
+    if (status && typeof status === 'string') where.status = status as InvoiceStatus;
+
+    const rows = await prisma.invoice.findMany({
+      where,
+      include: { customer: true, vendor: true },
+      orderBy: { issueDate: 'desc' },
+    });
+    res.json({ invoices: rows.map(mapInvoiceList) });
+  } catch (e) {
+    console.error(e);
+    res.status(503).json({ error: 'Database unavailable' });
+  }
+});
+
+router.get('/ar', async (_req, res) => {
+  if (!useDatabase()) {
+    const arInvoices = mockInvoices
+      .filter((i) => i.type === 'AR_INVOICE')
+      .map((m) => ({
+        ...m,
+        invoiceNumber: m.number,
+        paid: m.paid ?? 0,
+        date: m.date ?? new Date().toISOString().slice(0, 10),
+      }));
+    const total = arInvoices.reduce((sum, i) => sum + i.balance, 0);
+    res.json({
+      invoices: arInvoices,
+      summary: { total, current: total, days31to60: 0, over60Days: 0 },
+    });
+    return;
   }
 
-  res.json({ invoices });
+  try {
+    const company = await getOrCreateDefaultCompany();
+    const rows = await prisma.invoice.findMany({
+      where: { companyId: company.id, type: { in: ['AR_INVOICE', 'AR_CREDIT_MEMO'] } },
+      include: { customer: true, vendor: true },
+      orderBy: { issueDate: 'desc' },
+    });
+    const invoices = rows.map(mapInvoiceList);
+    const total = rows.reduce((s, r) => s + dec(r.balance), 0);
+    res.json({
+      invoices,
+      summary: { total, current: total, days31to60: 0, over60Days: 0 },
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(503).json({ error: 'Database unavailable' });
+  }
 });
 
-// GET /api/invoices/ar - Accounts Receivable
-router.get('/ar', (req, res) => {
-  const arInvoices = mockInvoices.filter(i => i.type === 'AR_INVOICE');
-  const total = arInvoices.reduce((sum, i) => sum + i.balance, 0);
+router.get('/ap', async (_req, res) => {
+  if (!useDatabase()) {
+    const apInvoices = mockInvoices
+      .filter((i) => i.type === 'AP_INVOICE')
+      .map((m) => ({
+        ...m,
+        invoiceNumber: m.number,
+        paid: m.paid ?? 0,
+        date: m.date ?? new Date().toISOString().slice(0, 10),
+      }));
+    const total = apInvoices.reduce((sum, i) => sum + i.balance, 0);
+    res.json({
+      invoices: apInvoices,
+      summary: { total, dueThisWeek: 0, overdue: 0, readyToPay: 0 },
+    });
+    return;
+  }
 
-  res.json({
-    invoices: arInvoices,
-    summary: {
-      total: 43700,
-      current: 18500,
-      days31to60: 12300,
-      over60Days: 4200,
-    }
-  });
+  try {
+    const company = await getOrCreateDefaultCompany();
+    const rows = await prisma.invoice.findMany({
+      where: { companyId: company.id, type: { in: ['AP_INVOICE', 'AP_CREDIT_MEMO'] } },
+      include: { customer: true, vendor: true },
+      orderBy: { issueDate: 'desc' },
+    });
+    const invoices = rows.map(mapInvoiceList);
+    const total = rows.reduce((s, r) => s + dec(r.balance), 0);
+    res.json({
+      invoices,
+      summary: { total, dueThisWeek: 0, overdue: 0, readyToPay: total },
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(503).json({ error: 'Database unavailable' });
+  }
 });
 
-// GET /api/invoices/ap - Accounts Payable
-router.get('/ap', (req, res) => {
-  const apInvoices = mockInvoices.filter(i => i.type === 'AP_INVOICE');
-  const total = apInvoices.reduce((sum, i) => sum + i.balance, 0);
-
-  res.json({
-    invoices: apInvoices,
-    summary: {
-      total: 8290.50,
-      dueThisWeek: 450,
-      overdue: 0,
-      readyToPay: 3500,
-    }
-  });
-});
-
-// GET /api/invoices/aging - AR/AP Aging Report
-router.get('/aging', (req, res) => {
+router.get('/aging', async (_req, res) => {
   res.json({
     arAging: [
-      { bucket: 'Current', amount: 18500 },
-      { bucket: '1-30 days', amount: 12300 },
-      { bucket: '31-60 days', amount: 8700 },
-      { bucket: '60+ days', amount: 4200 },
+      { bucket: 'Current', amount: 0 },
+      { bucket: '1-30 days', amount: 0 },
+      { bucket: '31-60 days', amount: 0 },
+      { bucket: '60+ days', amount: 0 },
     ],
     apAging: [
-      { bucket: 'Current', amount: 15200 },
-      { bucket: '1-30 days', amount: 9800 },
-      { bucket: '31-60 days', amount: 3400 },
-      { bucket: '60+ days', amount: 1100 },
+      { bucket: 'Current', amount: 0 },
+      { bucket: '1-30 days', amount: 0 },
+      { bucket: '31-60 days', amount: 0 },
+      { bucket: '60+ days', amount: 0 },
     ],
   });
 });
 
-// POST /api/invoices - Create invoice (demo)
-router.post('/', (req, res) => {
-  const rawAmt = Number(req.body.amount);
-  const amount = Number.isFinite(rawAmt) ? rawAmt : 0;
-  const invoice = {
-    id: String(mockInvoices.length + 1),
-    number: req.body.number ?? `INV-${Date.now()}`,
-    type: req.body.type ?? 'AR_INVOICE',
-    customer: req.body.customer,
-    vendor: req.body.vendor,
-    amount,
-    balance: amount,
-    status: req.body.status ?? 'PENDING',
-    dueDate: req.body.dueDate ?? new Date().toISOString().slice(0, 10),
+router.post('/', async (req, res) => {
+  const body = req.body as {
+    type?: string;
+    customerId?: string;
+    vendorId?: string;
+    amount?: number;
+    number?: string;
+    dueDate?: string;
+    status?: string;
   };
-  res.status(201).json({ invoice });
-});
 
-// PUT /api/invoices/:id/status — register before GET /:id if paths overlap (different methods OK)
-router.put('/:id/status', (req, res) => {
-  const inv = mockInvoices.find(i => i.id === req.params.id);
-  if (!inv) {
-    res.status(404).json({ error: 'Invoice not found' });
+  if (!useDatabase()) {
+    const rawAmt = Number(req.body.amount);
+    const amount = Number.isFinite(rawAmt) ? rawAmt : 0;
+    const num = req.body.number ?? `INV-${Date.now()}`;
+    const today = new Date().toISOString().slice(0, 10);
+    const invoice = {
+      id: String(mockInvoices.length + 1),
+      number: num,
+      invoiceNumber: num,
+      type: req.body.type ?? 'AR_INVOICE',
+      customer: req.body.customer ?? '',
+      vendor: req.body.vendor ?? '',
+      amount,
+      paid: 0,
+      balance: amount,
+      status: req.body.status ?? 'DRAFT',
+      date: today,
+      dueDate: req.body.dueDate ?? today,
+    };
+    res.status(201).json({ invoice });
     return;
   }
-  const status = req.body?.status ?? inv.status;
-  res.json({ invoice: { ...inv, status } });
+
+  try {
+    const company = await getOrCreateDefaultCompany();
+    const invType = (body.type as InvoiceType) ?? 'AR_INVOICE';
+    const amt = Number(body.amount);
+    if (!Number.isFinite(amt) || amt < 0) {
+      res.status(400).json({ error: 'Valid amount required' });
+      return;
+    }
+
+    const invNum =
+      body.number ??
+      `INV-${Date.now()}`;
+    const issue = new Date();
+    const due = body.dueDate ? new Date(body.dueDate) : new Date(issue.getTime() + 30 * 86400000);
+
+    const invoice = await prisma.invoice.create({
+      data: {
+        companyId: company.id,
+        invoiceNumber: invNum,
+        type: invType,
+        customerId: body.customerId || null,
+        vendorId: body.vendorId || null,
+        issueDate: issue,
+        dueDate: due,
+        subtotal: amt,
+        taxAmount: 0,
+        discountAmount: 0,
+        total: amt,
+        paidAmount: 0,
+        balance: amt,
+        status: (body.status as InvoiceStatus) ?? 'DRAFT',
+        lines: {
+          create: [
+            {
+              description: invType.startsWith('AR') ? 'Sales' : 'Purchase',
+              quantity: 1,
+              unitPrice: amt,
+              discount: 0,
+              total: amt,
+            },
+          ],
+        },
+      },
+      include: { customer: true, vendor: true },
+    });
+
+    res.status(201).json({ invoice: mapInvoiceList(invoice) });
+  } catch (e: unknown) {
+    console.error(e);
+    const dup = e && typeof e === 'object' && 'code' in e && e.code === 'P2002';
+    res.status(400).json({ error: dup ? 'Invoice number already exists' : 'Could not create invoice' });
+  }
 });
 
-// GET /api/invoices/:id
-router.get('/:id', (req, res) => {
-  const invoice = mockInvoices.find(i => i.id === req.params.id);
-  if (!invoice) {
-    res.status(404).json({ error: 'Invoice not found' });
+router.put('/:id/status', async (req, res) => {
+  if (!useDatabase()) {
+    const inv = mockInvoices.find((i) => i.id === req.params.id);
+    if (!inv) {
+      res.status(404).json({ error: 'Invoice not found' });
+      return;
+    }
+    const status = req.body?.status ?? inv.status;
+    res.json({ invoice: { ...inv, status } });
     return;
   }
-  res.json({ invoice });
+
+  try {
+    const status = req.body?.status as InvoiceStatus | undefined;
+    if (!status) {
+      res.status(400).json({ error: 'status required' });
+      return;
+    }
+    const invoice = await prisma.invoice.update({
+      where: { id: req.params.id },
+      data: { status },
+      include: { customer: true, vendor: true },
+    });
+    res.json({ invoice: mapInvoiceList(invoice) });
+  } catch {
+    res.status(404).json({ error: 'Invoice not found' });
+  }
+});
+
+router.get('/:id', async (req, res) => {
+  if (!useDatabase()) {
+    const invoice = mockInvoices.find((i) => i.id === req.params.id);
+    if (!invoice) {
+      res.status(404).json({ error: 'Invoice not found' });
+      return;
+    }
+    res.json({ invoice });
+    return;
+  }
+
+  try {
+    const row = await prisma.invoice.findFirst({
+      where: { id: req.params.id },
+      include: { customer: true, vendor: true, lines: true },
+    });
+    if (!row) {
+      res.status(404).json({ error: 'Invoice not found' });
+      return;
+    }
+    res.json({
+      invoice: {
+        ...mapInvoiceList(row),
+        lines: row.lines,
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(503).json({ error: 'Database unavailable' });
+  }
 });
 
 export { router as invoicesRouter };

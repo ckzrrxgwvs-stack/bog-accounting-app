@@ -180,6 +180,14 @@ class ApiClient {
     return this.request('/payments', { method: 'POST', body: data });
   }
 
+  async getInventoryItems() {
+    return this.request('/inventory');
+  }
+
+  async createInventoryItem(data: Record<string, unknown>) {
+    return this.request('/inventory', { method: 'POST', body: data });
+  }
+
   // Reports (server exposes GET with hyphenated paths)
   async getReport(type: 'income_statement' | 'balance_sheet' | 'trial_balance', params?: Record<string, string>) {
     const pathMap = {
@@ -189,6 +197,11 @@ class ApiClient {
     } as const;
     const q = params ? `?${new URLSearchParams(params).toString()}` : '';
     return this.request(`/reports/${pathMap[type]}${q}`, { method: 'GET' });
+  }
+
+  async getCashFlowReport(params?: Record<string, string>) {
+    const q = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return this.request(`/reports/cash-flow${q}`, { method: 'GET' });
   }
 
   // AI CPA

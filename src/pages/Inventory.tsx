@@ -1,7 +1,8 @@
 // Inventory Management Page
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus, Search, Package, AlertTriangle, TrendingDown, Edit, Trash2, Eye } from 'lucide-react';
+import { api } from '@/services/api';
 
 interface InventoryItem {
   id: string;
@@ -18,16 +19,39 @@ interface InventoryItem {
 
 export function Inventory() {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const items: InventoryItem[] = [
-    { id: '1', sku: 'PRD-001', name: 'Product A - Standard', category: 'Finished Goods', quantity: 150, unit: 'units', cost: 25.00, price: 50.00, reorderPoint: 50, value: 3750 },
-    { id: '2', sku: 'PRD-002', name: 'Product B - Premium', category: 'Finished Goods', quantity: 80, unit: 'units', cost: 40.00, price: 80.00, reorderPoint: 30, value: 3200 },
-    { id: '3', sku: 'RAW-001', name: 'Raw Material X', category: 'Raw Materials', quantity: 500, unit: 'kg', cost: 5.00, price: 12.00, reorderPoint: 200, value: 2500 },
-    { id: '4', sku: 'PKG-001', name: 'Packaging Materials', category: 'Supplies', quantity: 200, unit: 'boxes', cost: 8.00, price: 15.00, reorderPoint: 100, value: 1600 },
-    { id: '5', sku: 'PRD-003', name: 'Product C - Basic', category: 'Finished Goods', quantity: 25, unit: 'units', cost: 15.00, price: 35.00, reorderPoint: 40, value: 875 },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const res = await api.getInventoryItems();
+      if (cancelled) return;
+      if (!res.success || !res.data) {
+        setLoadError(res.error ?? 'Could not load inventory');
+        setItems([]);
+        setLoading(false);
+        return;
+      }
+      const payload = res.data as { items?: InventoryItem[] };
+      const raw = payload.items ?? [];
+      setItems(
+        raw.map((i) => ({
+          ...i,
+          category: i.category ?? '',
+        }))
+      );
+      setLoadError(null);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const lowStockItems = items.filter(i => i.quantity <= i.reorderPoint);
+  const lowStockItems = items.filter((i) => i.quantity <= i.reorderPoint);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -43,6 +67,7 @@ export function Inventory() {
         <div>
           <h1 className="text-2xl font-bold text-black">Inventory Management</h1>
           <p className="text-gray-500 mt-1">Track inventory, costs, and reorder points</p>
+          {loadError && <p className="mt-2 text-sm text-amber-700">{loadError} — empty list.</p>}
         </div>
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
           <button className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
@@ -145,7 +170,14 @@ export function Inventory() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {items.map((item) => {
+            {loading ? (
+              <tr>
+                <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
+                  Loading inventory…
+                </td>
+              </tr>
+            ) : (
+              items.map((item) => {
               const isLowStock = item.quantity <= item.reorderPoint;
               return (
                 <tr key={item.id} className="hover:bg-gray-50">
@@ -187,7 +219,8 @@ export function Inventory() {
                   </td>
                 </tr>
               );
-            })}
+            })
+            )}
           </tbody>
         </table>
       </div>
