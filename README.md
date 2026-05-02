@@ -6,7 +6,8 @@ A full-featured web-based accounting application with AI CPA assistant, supporti
 
 - Frontend production URL: `https://bog-accounting-v5.vercel.app`
 - Status: live and reachable
-- Current mode: demo mode (frontend static deployment without backend API)
+- **Module 1 (foundation):** Chart of accounts + company API when `DATABASE_URL` is set on the Node server; see `docs/MODULE_ROADMAP.md`.
+- First-time DB schema: from `accounting-app`, run `npx prisma db push` (or add migrations) against your Postgres URL before relying on persisted COA.
 
 ## Quick Start
 

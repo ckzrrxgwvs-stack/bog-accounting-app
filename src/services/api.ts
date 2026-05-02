@@ -85,9 +85,21 @@ class ApiClient {
     return this.request<{ status: string; timestamp: string; openai: boolean; database: boolean }>('/health');
   }
 
+  async getCompany() {
+    return this.request<{ company: Record<string, unknown> }>('/company');
+  }
+
+  async updateCompany(id: string, data: Record<string, unknown>) {
+    return this.request(`/company/${id}`, { method: 'PATCH', body: data });
+  }
+
   // Accounts
-  async getAccounts() {
-    return this.request('/accounts');
+  async getAccounts(filters?: { type?: string; search?: string }) {
+    const params = new URLSearchParams();
+    if (filters?.type) params.set('type', filters.type);
+    if (filters?.search) params.set('search', filters.search);
+    const qs = params.toString();
+    return this.request(`/accounts${qs ? `?${qs}` : ''}`);
   }
 
   async getAccountById(id: string) {

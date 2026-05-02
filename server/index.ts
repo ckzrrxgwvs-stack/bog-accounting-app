@@ -13,6 +13,7 @@ import { usersRouter } from './routes/users';
 import { customersRouter } from './routes/customers';
 import { vendorsRouter } from './routes/vendors';
 import { paymentsRouter } from './routes/payments';
+import { companyRouter } from './routes/company';
 
 config();
 
@@ -34,6 +35,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/customers', customersRouter);
 app.use('/api/vendors', vendorsRouter);
 app.use('/api/payments', paymentsRouter);
+app.use('/api/company', companyRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

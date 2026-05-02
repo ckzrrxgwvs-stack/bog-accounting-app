@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { MainLayout } from './components/layout/MainLayout';
 import { Dashboard } from './pages/Dashboard';
 import { Ledger } from './pages/Ledger';
+import { ChartOfAccounts } from './pages/ChartOfAccounts';
 import { AccountsPayable } from './pages/AccountsPayable';
 import { AccountsReceivable } from './pages/AccountsReceivable';
 import { Reports } from './pages/Reports';
@@ -49,6 +50,7 @@ function App() {
           }
         >
           <Route index element={<Dashboard />} />
+          <Route path="ledger/coa" element={<ChartOfAccounts />} />
           <Route path="ledger" element={<Ledger />} />
           <Route path="ledger/new" element={<Ledger />} />
           <Route path="ap" element={<AccountsPayable />} />

@@ -7,6 +7,7 @@ import { LogoWithStatus } from '@/components/Logo';
 import {
   LayoutDashboard,
   BookOpen,
+  Layers,
   CreditCard,
   FileText,
   Package,
@@ -23,6 +24,7 @@ import {
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, module: 'dashboard' },
+  { name: 'Chart of accounts', href: '/ledger/coa', icon: Layers, module: 'general_ledger' },
   { name: 'General Ledger', href: '/ledger', icon: BookOpen, module: 'general_ledger' },
   { name: 'Accounts Payable', href: '/ap', icon: CreditCard, module: 'accounts_payable' },
   { name: 'Accounts Receivable', href: '/ar', icon: FileText, module: 'accounts_receivable' },
