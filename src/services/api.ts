@@ -81,6 +81,10 @@ class ApiClient {
     }
   }
 
+  async getHealth() {
+    return this.request<{ status: string; timestamp: string; openai: boolean; database: boolean }>('/health');
+  }
+
   // Accounts
   async getAccounts() {
     return this.request('/accounts');
