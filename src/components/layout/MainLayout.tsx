@@ -1,9 +1,8 @@
 // Main shell — BOG “ledger workspace”: structured nav (QB-like clarity) + ink/paper (our brand)
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
-import api from '@/services/api';
 import { LogoWithStatus } from '@/components/Logo';
 import {
   LayoutDashboard,
@@ -48,10 +47,6 @@ export function MainLayout() {
   const location = useLocation();
   const { user, logout, hasModuleAccess } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  useEffect(() => {
-    void api.getHealth();
-  }, []);
 
   const filteredNav = navigation.filter((item) => hasModuleAccess(item.module));
   const filteredBottomNav = bottomNavigation.filter((item) => hasModuleAccess(item.module));
