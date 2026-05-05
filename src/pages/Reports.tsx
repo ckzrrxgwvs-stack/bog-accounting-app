@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { FileText, Download } from 'lucide-react';
 import { ModuleWorkspace } from '@/components/layout/ModuleWorkspace';
+import { api } from '@/services/api';
 
 const reportTypes = [
   { id: 'income-statement', name: 'Income Statement', description: 'Revenue, expenses, and net income' },
@@ -24,6 +25,25 @@ export function Reports() {
   const generateReport = () => {
     if (!selectedReport) return;
     alert(`Generating ${selectedReport} for period ${period}/${year}`);
+  };
+
+  const exportCsv = async () => {
+    if (selectedReport !== 'trial-balance') {
+      alert('CSV export is wired for Trial Balance (posted debits/credits). Select Trial Balance first.');
+      return;
+    }
+    const r = await api.fetchTrialBalanceCsv({ month: Number(period), year: Number(year) });
+    if (!r.ok) {
+      alert('Could not download CSV. Ensure the API is reachable and you are logged in.');
+      return;
+    }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trial-balance-${year}-${period.padStart(2, '0')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -118,10 +138,11 @@ export function Reports() {
           </button>
           <button
             type="button"
+            onClick={() => void exportCsv()}
             className="inline-flex items-center rounded-lg border border-bog-rule bg-white px-4 py-2 text-sm font-medium text-bog-ink shadow-sm transition-colors hover:bg-bog-sheet"
           >
             <Download size={18} className="mr-2" />
-            Export
+            Export CSV
           </button>
         </div>
       </div>

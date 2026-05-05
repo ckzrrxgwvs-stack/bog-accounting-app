@@ -1,6 +1,8 @@
 // Settings Page - Company, Security, and System Configuration
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { api } from '@/services/api';
+import { useAuthStore } from '@/stores/authStore';
 import {
   Settings as SettingsIcon,
   Building,
@@ -21,7 +23,11 @@ import {
   FileCheck,
   ExternalLink,
   Zap,
-  Star
+  Star,
+  Landmark,
+  KeyRound,
+  Scale,
+  RefreshCw,
 } from 'lucide-react';
 
 interface TabItem {
@@ -37,6 +43,12 @@ const tabs: TabItem[] = [
   { id: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
   { id: 'audit', label: 'Audit Log', icon: <FileText size={18} /> },
 ];
+
+const LICENSING_TAB: TabItem = {
+  id: 'licensing',
+  label: 'Licensing',
+  icon: <KeyRound size={18} />,
+};
 
 interface AuditEntry {
   id: string;
@@ -62,10 +74,25 @@ interface CompanySettings {
   usePayroll: boolean;
   useMultiCurrency: boolean;
   useCostCenters: boolean;
+  glCashAccountCode: string;
+  glArAccountCode: string;
+  glApAccountCode: string;
+  glRevenueAccountCode: string;
+  glExpenseAccountCode: string;
+  glSalesTaxPayableAccountCode: string;
+  glPurchasesExpenseAccountCode: string;
+  useBankFeeds: boolean;
+  useBankOutboundPayments: boolean;
+  bankIntegrationNotes: string;
+  useUsPayrollTaxReporting: boolean;
+  useUsInformationReturns: boolean;
+  usTaxIntegrationNotes: string;
 }
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState('company');
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [companyLoadError, setCompanyLoadError] = useState<string | null>(null);
   const [companySettings, setCompanySettings] = useState<CompanySettings>({
     name: 'Acme Corporation',
     legalName: 'Acme Corporation Inc.',
@@ -79,7 +106,125 @@ export function Settings() {
     usePayroll: true,
     useMultiCurrency: false,
     useCostCenters: false,
+    glCashAccountCode: '1100',
+    glArAccountCode: '1200',
+    glApAccountCode: '2100',
+    glRevenueAccountCode: '4100',
+    glExpenseAccountCode: '6100',
+    glSalesTaxPayableAccountCode: '2150',
+    glPurchasesExpenseAccountCode: '5100',
+    useBankFeeds: false,
+    useBankOutboundPayments: false,
+    bankIntegrationNotes: '',
+    useUsPayrollTaxReporting: false,
+    useUsInformationReturns: false,
+    usTaxIntegrationNotes: '',
   });
+
+  const userRole = useAuthStore((s) => s.user?.role);
+  const canManageLicenses =
+    userRole === 'PRESIDENT' || userRole === 'CFO' || userRole === 'CONTROLLER';
+
+  const visibleTabs = useMemo(() => {
+    if (!canManageLicenses) return tabs;
+    const next = [...tabs];
+    const integrationsIdx = next.findIndex((t) => t.id === 'integrations');
+    if (integrationsIdx >= 0) {
+      next.splice(integrationsIdx + 1, 0, LICENSING_TAB);
+    }
+    return next;
+  }, [canManageLicenses]);
+
+  type RegRow = {
+    id: string;
+    registrationCode: string;
+    customerName: string | null;
+    contactEmail: string | null;
+    internalNotes: string | null;
+    status: string;
+    issuedAt: string;
+    expiresAt: string | null;
+    activatedAt: string | null;
+    revokedAt: string | null;
+    companyId: string | null;
+    companyName: string | null;
+  };
+
+  const [registrations, setRegistrations] = useState<RegRow[]>([]);
+  const [regLoading, setRegLoading] = useState(false);
+  const [issueCustomerName, setIssueCustomerName] = useState('');
+  const [issueContactEmail, setIssueContactEmail] = useState('');
+  const [issueNotes, setIssueNotes] = useState('');
+  const [issueExpires, setIssueExpires] = useState('');
+  const [fxStatus, setFxStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeTab !== 'licensing' || !canManageLicenses) return;
+    let cancelled = false;
+    (async () => {
+      setRegLoading(true);
+      const res = await api.listCustomerRegistrations();
+      if (cancelled) return;
+      setRegLoading(false);
+      if (!res.success || !res.data) {
+        setRegistrations([]);
+        return;
+      }
+      const payload = res.data as { registrations?: RegRow[] };
+      setRegistrations(payload.registrations ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, canManageLicenses]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await api.getCompany();
+      if (cancelled) return;
+      if (!res.success || !res.data) {
+        setCompanyLoadError(res.error ?? 'Could not load company (API or database).');
+        return;
+      }
+      const payload = res.data as { company?: Record<string, unknown> };
+      const co = payload.company;
+      if (!co) return;
+      setCompanyId(typeof co.id === 'string' ? co.id : null);
+      setCompanySettings((prev) => ({
+        ...prev,
+        name: (co.name as string) ?? prev.name,
+        legalName: (co.legalName as string) ?? prev.legalName,
+        country: (co.country as 'US' | 'MX') ?? prev.country,
+        currency: (co.currency as 'USD' | 'MXN') ?? prev.currency,
+        taxId: (co.taxId as string) ?? prev.taxId,
+        email: (co.email as string) ?? prev.email,
+        phone: (co.phone as string) ?? prev.phone,
+        address: (co.address as string) ?? prev.address,
+        useInventory: Boolean(co.useInventory),
+        usePayroll: Boolean(co.usePayroll),
+        useMultiCurrency: Boolean(co.useMultiCurrency),
+        useCostCenters: Boolean(co.useCostCenters),
+        glCashAccountCode: (co.glCashAccountCode as string) ?? prev.glCashAccountCode,
+        glArAccountCode: (co.glArAccountCode as string) ?? prev.glArAccountCode,
+        glApAccountCode: (co.glApAccountCode as string) ?? prev.glApAccountCode,
+        glRevenueAccountCode: (co.glRevenueAccountCode as string) ?? prev.glRevenueAccountCode,
+        glExpenseAccountCode: (co.glExpenseAccountCode as string) ?? prev.glExpenseAccountCode,
+        glSalesTaxPayableAccountCode: (co.glSalesTaxPayableAccountCode as string) ?? prev.glSalesTaxPayableAccountCode,
+        glPurchasesExpenseAccountCode: (co.glPurchasesExpenseAccountCode as string) ?? prev.glPurchasesExpenseAccountCode,
+        useBankFeeds: Boolean(co.useBankFeeds),
+        useBankOutboundPayments: Boolean(co.useBankOutboundPayments),
+        bankIntegrationNotes: (co.bankIntegrationNotes as string) ?? '',
+        useUsPayrollTaxReporting: Boolean(co.useUsPayrollTaxReporting),
+        useUsInformationReturns: Boolean(co.useUsInformationReturns),
+        usTaxIntegrationNotes: (co.usTaxIntegrationNotes as string) ?? '',
+      }));
+      setCompanyLoadError(null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const auditLog: AuditEntry[] = [
     {
@@ -164,12 +309,242 @@ export function Settings() {
     }
   };
 
-  const handleSaveCompany = () => {
-    alert('Company settings saved! (Demo mode)');
+  const handleSaveCompany = async () => {
+    if (!companyId) {
+      alert('Company record not loaded. Configure DATABASE_URL and ensure /api/company returns data.');
+      return;
+    }
+    const res = await api.updateCompany(companyId, {
+      name: companySettings.name,
+      legalName: companySettings.legalName,
+      country: companySettings.country,
+      currency: companySettings.currency,
+      taxId: companySettings.taxId,
+      email: companySettings.email,
+      phone: companySettings.phone,
+      address: companySettings.address,
+      useInventory: companySettings.useInventory,
+      usePayroll: companySettings.usePayroll,
+      useMultiCurrency: companySettings.useMultiCurrency,
+      useCostCenters: companySettings.useCostCenters,
+      glCashAccountCode: companySettings.glCashAccountCode,
+      glArAccountCode: companySettings.glArAccountCode,
+      glApAccountCode: companySettings.glApAccountCode,
+      glRevenueAccountCode: companySettings.glRevenueAccountCode,
+      glExpenseAccountCode: companySettings.glExpenseAccountCode,
+      glSalesTaxPayableAccountCode: companySettings.glSalesTaxPayableAccountCode,
+      glPurchasesExpenseAccountCode: companySettings.glPurchasesExpenseAccountCode,
+      useBankFeeds: companySettings.useBankFeeds,
+      useBankOutboundPayments: companySettings.useBankOutboundPayments,
+      bankIntegrationNotes: companySettings.bankIntegrationNotes || null,
+      useUsPayrollTaxReporting: companySettings.useUsPayrollTaxReporting,
+      useUsInformationReturns: companySettings.useUsInformationReturns,
+      usTaxIntegrationNotes: companySettings.usTaxIntegrationNotes.trim() || null,
+    });
+    if (!res.success) {
+      alert(res.error ?? 'Save failed');
+      return;
+    }
+    alert('Company settings saved.');
   };
+
+  const handleSaveBankIntegrationPrefs = async () => {
+    if (!companyId) {
+      alert('Company record not loaded. Configure DATABASE_URL and ensure /api/company returns data.');
+      return;
+    }
+    const res = await api.updateCompany(companyId, {
+      useBankFeeds: companySettings.useBankFeeds,
+      useBankOutboundPayments: companySettings.useBankOutboundPayments,
+      bankIntegrationNotes: companySettings.bankIntegrationNotes.trim() || null,
+    });
+    if (!res.success) {
+      alert(res.error ?? 'Save failed');
+      return;
+    }
+    alert('Bank integration preferences saved.');
+  };
+
+  const handleSaveUsTaxIntegrationPrefs = async () => {
+    if (!companyId) {
+      alert('Company record not loaded. Configure DATABASE_URL and ensure /api/company returns data.');
+      return;
+    }
+    const res = await api.updateCompany(companyId, {
+      useUsPayrollTaxReporting: companySettings.useUsPayrollTaxReporting,
+      useUsInformationReturns: companySettings.useUsInformationReturns,
+      usTaxIntegrationNotes: companySettings.usTaxIntegrationNotes.trim() || null,
+    });
+    if (!res.success) {
+      alert(res.error ?? 'Save failed');
+      return;
+    }
+    alert('US federal tax integration preferences saved.');
+  };
+
+  const handleRefreshExchangeRates = async () => {
+    setFxStatus(null);
+    const res = await api.refreshExchangeRates();
+    if (!res.success) {
+      setFxStatus(res.error ?? 'Refresh failed');
+      return;
+    }
+    const d = res.data as { quotesWritten?: number; date?: string; base?: string };
+    setFxStatus(`Updated ${d.quotesWritten ?? 0} quote pair(s) — base ${d.base ?? ''}, rate date ${d.date ?? ''}.`);
+  };
+
+  const handleIssueRegistration = async () => {
+    const res = await api.issueCustomerRegistration({
+      customerName: issueCustomerName || undefined,
+      contactEmail: issueContactEmail || undefined,
+      internalNotes: issueNotes || undefined,
+      expiresAt: issueExpires || undefined,
+    });
+    if (!res.success) {
+      alert(res.error ?? 'Could not issue code');
+      return;
+    }
+    const d = res.data as { registrationCode?: string };
+    alert(`Registration code issued:\n${d.registrationCode ?? ''}\n\nCopy this to your signed customer.`);
+    setIssueCustomerName('');
+    setIssueContactEmail('');
+    setIssueNotes('');
+    setIssueExpires('');
+    const list = await api.listCustomerRegistrations();
+    if (list.success && list.data) {
+      const payload = list.data as { registrations?: RegRow[] };
+      setRegistrations(payload.registrations ?? []);
+    }
+  };
+
+  const renderLicensingTab = () => (
+    <div className="space-y-6">
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <h3 className="font-semibold text-black mb-2">Signed-customer registration codes</h3>
+        <p className="text-sm text-gray-500 mb-6">
+          Issue product-style keys (16 characters, grouped as XXXX-XXXX-XXXX-XXXX). Codes use an unambiguous alphabet
+          (no O/0 or I/1). Each record tracks the customer you issued to and activation status. Redeeming a code on the
+          login screen creates a new organization and seeds the chart of accounts.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Customer / organization label</label>
+            <input
+              type="text"
+              value={issueCustomerName}
+              onChange={(e) => setIssueCustomerName(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              placeholder="e.g. Acme Holdings LLC"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Contact email (optional)</label>
+            <input
+              type="email"
+              value={issueContactEmail}
+              onChange={(e) => setIssueContactEmail(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              placeholder="billing@customer.com"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm text-gray-500 mb-1">Internal notes (optional)</label>
+            <input
+              type="text"
+              value={issueNotes}
+              onChange={(e) => setIssueNotes(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              placeholder="Contract #, renewal date, …"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Expires (optional)</label>
+            <input
+              type="date"
+              value={issueExpires}
+              onChange={(e) => setIssueExpires(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleIssueRegistration}
+          className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 text-sm font-medium"
+        >
+          Issue new registration code
+        </button>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-lg p-6 overflow-x-auto">
+        <h3 className="font-semibold text-black mb-4">Issued registrations</h3>
+        {regLoading ? (
+          <p className="text-sm text-gray-500">Loading…</p>
+        ) : registrations.length === 0 ? (
+          <p className="text-sm text-gray-500">No codes issued yet.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 text-left text-gray-500">
+                <th className="pb-2 pr-4 font-medium">Code</th>
+                <th className="pb-2 pr-4 font-medium">Customer</th>
+                <th className="pb-2 pr-4 font-medium">Email</th>
+                <th className="pb-2 pr-4 font-medium">Status</th>
+                <th className="pb-2 pr-4 font-medium">Issued</th>
+                <th className="pb-2 pr-4 font-medium">Activated org</th>
+                <th className="pb-2 font-medium">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {registrations.map((r) => (
+                <tr key={r.id} className="border-b border-gray-100">
+                  <td className="py-2 pr-4 font-mono text-xs whitespace-nowrap">{r.registrationCode}</td>
+                  <td className="py-2 pr-4">{r.customerName ?? '—'}</td>
+                  <td className="py-2 pr-4">{r.contactEmail ?? '—'}</td>
+                  <td className="py-2 pr-4">{r.status}</td>
+                  <td className="py-2 pr-4 whitespace-nowrap">{formatTimestamp(r.issuedAt)}</td>
+                  <td className="py-2 pr-4">{r.companyName ?? '—'}</td>
+                  <td className="py-2">
+                    {r.status === 'ISSUED' && (
+                      <button
+                        type="button"
+                        className="text-red-600 hover:underline text-xs"
+                        onClick={async () => {
+                          if (!window.confirm('Revoke this unused code?')) return;
+                          const res = await api.revokeCustomerRegistration(r.id);
+                          if (!res.success) {
+                            alert(res.error ?? 'Revoke failed');
+                            return;
+                          }
+                          const list = await api.listCustomerRegistrations();
+                          if (list.success && list.data) {
+                            const payload = list.data as { registrations?: RegRow[] };
+                            setRegistrations(payload.registrations ?? []);
+                          }
+                        }}
+                      >
+                        Revoke
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
 
   const renderCompanyTab = () => (
     <div className="space-y-6">
+      {companyLoadError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {companyLoadError} Edits still work locally; save requires a live company from the API.
+        </div>
+      )}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h3 className="font-semibold text-black mb-4">Basic Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -259,6 +634,36 @@ export function Settings() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <h3 className="font-semibold text-black mb-4">Default GL accounts (chart codes)</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Posting AR/AP invoices and payments uses these codes — each must exist as an active posting account in your chart.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {(
+            [
+              ['glCashAccountCode', 'Cash / bank'],
+              ['glArAccountCode', 'Accounts receivable'],
+              ['glApAccountCode', 'Accounts payable'],
+              ['glRevenueAccountCode', 'Revenue'],
+              ['glExpenseAccountCode', 'Operating expense (fallback)'],
+              ['glSalesTaxPayableAccountCode', 'Sales tax payable'],
+              ['glPurchasesExpenseAccountCode', 'Purchases / COGS-style expense'],
+            ] as const
+          ).map(([key, label]) => (
+            <div key={key}>
+              <label className="block text-sm text-gray-500 mb-1">{label}</label>
+              <input
+                type="text"
+                value={companySettings[key]}
+                onChange={(e) => setCompanySettings({ ...companySettings, [key]: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-black"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h3 className="font-semibold text-black mb-4">Module Configuration</h3>
         <div className="space-y-3">
           {[
@@ -300,6 +705,20 @@ export function Settings() {
 
   const renderSecurityTab = () => (
     <div className="space-y-6">
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <h3 className="font-semibold text-black mb-4">API protections</h3>
+        <p className="text-sm text-gray-600 mb-3">
+          The backend uses HTTP security headers (Helmet), request size limits, and per-IP rate limiting on <code className="text-xs bg-gray-100 px-1 rounded">/api/*</code>.
+          Posting invoices or payments to the general ledger requires a valid JWT when the database is enabled, and your
+          role must be allowed to post (President, CFO, Controller, or Accountant for any document; AR/AP clerks only for
+          their side). Read-only users cannot post. Set{' '}
+          <code className="text-xs bg-gray-100 px-1 rounded">SKIP_GL_AUTH=true</code> only for trusted local development.
+        </p>
+        <p className="text-sm text-gray-600">
+          AI accounting review returns suggestions only; it never posts journals or changes balances without your action in the product.
+        </p>
+      </div>
+
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h3 className="font-semibold text-black mb-4">MFA Configuration</h3>
         <div className="space-y-4">
@@ -362,6 +781,199 @@ export function Settings() {
 
   const renderIntegrationsTab = () => (
     <div className="space-y-6">
+      {/* Bank connectivity — opt-in flags only; no live bank API in this build */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100">
+            <Landmark className="text-black" size={20} />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-black">Bank & cash connectivity</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Turn these on when your company intends to use automated bank feeds, reconciliation, or initiated payments
+              later. The application does not connect to any bank today — these settings only store your preference on the
+              company record so future releases or custom integrations can read them.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {(
+            [
+              {
+                key: 'useBankFeeds' as const,
+                label: 'Bank transaction import & reconciliation',
+                desc: 'Planned: imported statement lines, matching, cleared balances vs ledger.',
+              },
+              {
+                key: 'useBankOutboundPayments' as const,
+                label: 'Bank-initiated payments',
+                desc: 'Planned: outbound ACH/wires from the app where your provider allows.',
+              },
+            ] as const
+          ).map((item) => (
+            <div key={item.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg gap-4">
+              <div>
+                <p className="font-medium text-black">{item.label}</p>
+                <p className="text-sm text-gray-500">{item.desc}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setCompanySettings({ ...companySettings, [item.key]: !companySettings[item.key] })
+                }
+                className={`w-12 h-6 rounded-full shrink-0 transition-colors ${
+                  companySettings[item.key] ? 'bg-black' : 'bg-gray-300'
+                }`}
+                aria-pressed={companySettings[item.key]}
+              >
+                <span
+                  className={`block w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                    companySettings[item.key] ? 'translate-x-6' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+          ))}
+
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Internal notes (optional)</label>
+            <textarea
+              value={companySettings.bankIntegrationNotes}
+              onChange={(e) => setCompanySettings({ ...companySettings, bankIntegrationNotes: e.target.value })}
+              placeholder="e.g. Target Plaid Q3 — IT to provision credentials"
+              rows={3}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black resize-y"
+            />
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={handleSaveBankIntegrationPrefs}
+              className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
+            >
+              Save bank integration preferences
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* US federal tax — opt-in only; no IRS / transmitter APIs in this build */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100">
+            <Scale className="text-black" size={20} />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-black">US federal tax (IRS-oriented workflows)</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Opt in when your organization plans to streamline payroll tax reporting (e.g. withholdings, Forms W-2 / 941)
+              or information returns (e.g. 1099 family) through future integrations. This application does not submit
+              anything to the IRS, SSA, or any transmitter today — preferences are stored on
+              the company record for roadmap features and partner onboarding (typically via an authorized e-file /
+              payroll provider).
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {(
+            [
+              {
+                key: 'useUsPayrollTaxReporting' as const,
+                label: 'Payroll & withholding tax reporting',
+                desc: 'Planned: exports or filing paths aligned with payroll/withholding (partner-certified).',
+              },
+              {
+                key: 'useUsInformationReturns' as const,
+                label: 'Information returns (e.g. 1099)',
+                desc: 'Planned: 1099-NEC/MISC-style data and transmitter-ready exports where applicable.',
+              },
+            ] as const
+          ).map((item) => (
+            <div key={item.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg gap-4">
+              <div>
+                <p className="font-medium text-black">{item.label}</p>
+                <p className="text-sm text-gray-500">{item.desc}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setCompanySettings({ ...companySettings, [item.key]: !companySettings[item.key] })
+                }
+                className={`w-12 h-6 rounded-full shrink-0 transition-colors ${
+                  companySettings[item.key] ? 'bg-black' : 'bg-gray-300'
+                }`}
+                aria-pressed={companySettings[item.key]}
+              >
+                <span
+                  className={`block w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                    companySettings[item.key] ? 'translate-x-6' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+          ))}
+
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Internal notes (optional)</label>
+            <textarea
+              value={companySettings.usTaxIntegrationNotes}
+              onChange={(e) => setCompanySettings({ ...companySettings, usTaxIntegrationNotes: e.target.value })}
+              placeholder="e.g. Intended payroll partner — obtain EFIN via CPA firm Q4"
+              rows={3}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black resize-y"
+            />
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={handleSaveUsTaxIntegrationPrefs}
+              className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800"
+            >
+              Save US tax integration preferences
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Exchange rates — Frankfurter (ECB reference), free API */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100">
+            <RefreshCw className="text-black" size={20} />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-black">Daily exchange rates</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Spot rates come from{' '}
+              <code className="text-xs bg-gray-100 px-1 rounded">api.frankfurter.app</code> (ECB reference data, no API
+              key). Your company functional currency is the FX base; optional quote list via{' '}
+              <code className="text-xs bg-gray-100 px-1 rounded">FX_DEFAULT_QUOTES</code> in server environment. Enable
+              multi-currency under Company → Module configuration for full ledger flows.
+            </p>
+            {!companySettings.useMultiCurrency && (
+              <p className="text-xs text-amber-800 mt-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                Multi-currency module is currently off — you can still store rates for reporting or testing.
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleRefreshExchangeRates}
+            className="inline-flex items-center px-4 py-2 bg-black text-white text-sm rounded-lg hover:bg-gray-800"
+          >
+            <RefreshCw size={16} className="mr-2" />
+            Refresh daily rates
+          </button>
+          {fxStatus && <p className="text-sm text-gray-600">{fxStatus}</p>}
+        </div>
+      </div>
+
       {/* Database Section */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
@@ -721,7 +1333,7 @@ export function Settings() {
         {/* Sidebar */}
         <div className="lg:w-64 flex-shrink-0 mb-6 lg:mb-0 lg:mr-6">
           <div className="bg-white border border-gray-200 rounded-lg p-2">
-            {tabs.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -745,6 +1357,7 @@ export function Settings() {
           {activeTab === 'integrations' && renderIntegrationsTab()}
           {activeTab === 'notifications' && renderNotificationsTab()}
           {activeTab === 'audit' && renderAuditTab()}
+          {activeTab === 'licensing' && canManageLicenses && renderLicensingTab()}
         </div>
       </div>
     </div>

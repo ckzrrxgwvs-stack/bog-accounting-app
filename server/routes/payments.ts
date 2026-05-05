@@ -1,15 +1,48 @@
 import { Router } from 'express';
-import { PaymentMethod, PaymentStatus } from '@prisma/client';
+import { PaymentMethod, PaymentStatus, AuditAction } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { useDatabase } from '../lib/dbMode';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
+import { postPaymentToGeneralLedger } from '../services/paymentGlPost';
+import { writeAuditLog } from '../lib/auditLog';
+import { requireJwtForGlPost } from '../middleware/requireJwtForGl';
+import { requireGlPostRole } from '../middleware/requireGlPostRole';
+import { requirePaymentGlClerkScope } from '../middleware/requireGlClerkScopeForGl';
+import type { Request } from 'express';
+import { convertCurrencyAmount } from '../services/exchangeRateService';
 
 const router = Router();
 
+type CompanyFx = { id: string; currency: string; useMultiCurrency: boolean };
+
 const mockPayments = [
-  { id: 'p1', date: '2026-04-20', amount: 5200, method: 'ACH', reference: 'PMT-001', type: 'AR' as const },
-  { id: 'p2', date: '2026-04-18', amount: 2200, method: 'WIRE_TRANSFER', reference: 'PMT-002', type: 'AP' as const },
+  {
+    id: 'p1',
+    date: '2026-04-20',
+    amount: 5200,
+    currency: 'USD',
+    method: 'ACH',
+    reference: 'PMT-001',
+    type: 'AR' as const,
+    status: 'PROCESSED',
+    appliedAmount: 5200,
+    glJournalEntryId: null,
+    glPostedAt: null,
+  },
+  {
+    id: 'p2',
+    date: '2026-04-18',
+    amount: 2200,
+    currency: 'USD',
+    method: 'WIRE_TRANSFER',
+    reference: 'PMT-002',
+    type: 'AP' as const,
+    status: 'PROCESSED',
+    appliedAmount: 2200,
+    glJournalEntryId: null,
+    glPostedAt: null,
+  },
 ];
 
 function parsePaymentMethod(raw: string | undefined): PaymentMethod {
@@ -41,29 +74,54 @@ function mapPaymentRow(p: {
   paymentNumber: string;
   date: Date;
   amount: unknown;
+  currency?: string;
   method: PaymentMethod;
   reference: string | null;
   status: PaymentStatus;
   appliedAmount: unknown;
+  glPostedAt?: Date | null;
+  glJournalEntryId?: string | null;
   invoices?: { invoice: { type: string } }[];
 }) {
   return {
     id: p.id,
     date: p.date.toISOString().slice(0, 10),
     amount: dec(p.amount as never),
+    currency: (p.currency ?? 'USD').toUpperCase(),
     method: p.method,
     reference: p.reference ?? p.paymentNumber,
     type: inferPaymentType(p.invoices),
     status: p.status,
     appliedAmount: dec(p.appliedAmount as never),
+    glPostedAt: p.glPostedAt ? p.glPostedAt.toISOString() : null,
+    glJournalEntryId: p.glJournalEntryId ?? null,
   };
+}
+
+async function enrichPaymentRow(
+  p: Parameters<typeof mapPaymentRow>[0] & { date: Date; currency?: string },
+  company: CompanyFx
+) {
+  const mapped = mapPaymentRow(p);
+  const fc = (company.currency ?? 'USD').toUpperCase();
+  const cur = mapped.currency;
+  const asOf = p.date;
+  if (!company.useMultiCurrency || cur === fc) {
+    return { ...mapped, functionalAmount: mapped.amount, fxMissing: false };
+  }
+  const functionalAmount = await convertCurrencyAmount(company.id, mapped.amount, cur, fc, asOf);
+  return { ...mapped, functionalAmount, fxMissing: functionalAmount === null };
 }
 
 router.get('/', async (req, res) => {
   const { type } = req.query;
 
   if (!useDatabase()) {
-    let list = [...mockPayments];
+    let list = [...mockPayments].map((p) => ({
+      ...p,
+      functionalAmount: p.amount,
+      fxMissing: false,
+    }));
     if (type === 'AR' || type === 'AP') list = list.filter((p) => p.type === type);
     res.json({ payments: list });
     return;
@@ -71,6 +129,10 @@ router.get('/', async (req, res) => {
 
   try {
     const company = await getOrCreateDefaultCompany();
+    const companyFx = await prisma.company.findUniqueOrThrow({
+      where: { id: company.id },
+      select: { id: true, currency: true, useMultiCurrency: true },
+    });
     const rows = await prisma.payment.findMany({
       where: { companyId: company.id },
       include: {
@@ -78,7 +140,7 @@ router.get('/', async (req, res) => {
       },
       orderBy: { date: 'desc' },
     });
-    let mapped = rows.map(mapPaymentRow);
+    let mapped = await Promise.all(rows.map((r) => enrichPaymentRow(r, companyFx)));
     if (type === 'AR' || type === 'AP') {
       mapped = mapped.filter((p) => p.type === type);
     }
@@ -98,13 +160,18 @@ router.post('/', async (req, res) => {
     type?: 'AR' | 'AP';
     invoiceId?: string;
     applyAmount?: number;
+    currency?: string;
   };
 
   if (!useDatabase()) {
+    const rawAmt = Number(body.amount) || 0;
     const payment = {
       id: `p-${Date.now()}`,
       date: body.date ?? new Date().toISOString().slice(0, 10),
-      amount: Number(body.amount) || 0,
+      amount: rawAmt,
+      currency: 'USD',
+      functionalAmount: rawAmt,
+      fxMissing: false,
       method: parsePaymentMethod(body.method),
       reference: body.reference ?? '',
       type: body.type ?? 'AR',
@@ -115,6 +182,18 @@ router.post('/', async (req, res) => {
 
   try {
     const company = await getOrCreateDefaultCompany();
+    const coRow = await prisma.company.findUniqueOrThrow({
+      where: { id: company.id },
+      select: { currency: true, useMultiCurrency: true },
+    });
+    const fc = (coRow.currency ?? 'USD').toUpperCase();
+    let currency = typeof body.currency === 'string' ? body.currency.trim().toUpperCase() : fc;
+    if (!coRow.useMultiCurrency) currency = fc;
+    if (!/^[A-Z]{3}$/.test(currency)) {
+      res.status(400).json({ error: 'currency must be a 3-letter ISO code (e.g. USD, EUR, MXN)' });
+      return;
+    }
+
     const amt = Number(body.amount);
     if (!Number.isFinite(amt) || amt <= 0) {
       res.status(400).json({ error: 'Valid amount required' });
@@ -141,6 +220,13 @@ router.post('/', async (req, res) => {
         res.status(400).json({ error: 'Invoice not found' });
         return;
       }
+      const invCur = (inv.currency ?? fc).toUpperCase();
+      if (invCur !== currency) {
+        res.status(400).json({
+          error: `Payment currency (${currency}) must match invoice currency (${invCur}) for this allocation`,
+        });
+        return;
+      }
       apply = Math.min(applyAmt, dec(inv.balance), amt);
       invoiceConnect = {
         create: { amount: apply, invoiceId: inv.id },
@@ -153,6 +239,7 @@ router.post('/', async (req, res) => {
         paymentNumber,
         date: d,
         amount: amt,
+        currency,
         method,
         reference: body.reference ?? null,
         status: 'PROCESSED' as PaymentStatus,
@@ -181,18 +268,74 @@ router.post('/', async (req, res) => {
       }
     }
 
-    res.status(201).json({
-      payment: mapPaymentRow({
+    const companyFx = await prisma.company.findUniqueOrThrow({
+      where: { id: company.id },
+      select: { id: true, currency: true, useMultiCurrency: true },
+    });
+    const paymentPayload = await enrichPaymentRow(
+      {
         ...created,
         invoices: created.invoices.map((x) => ({
           invoice: x.invoice,
         })),
-      }),
-    });
+      },
+      companyFx
+    );
+    res.status(201).json({ payment: paymentPayload });
   } catch (e: unknown) {
     console.error(e);
     const dup = e && typeof e === 'object' && 'code' in e && e.code === 'P2002';
     res.status(400).json({ error: dup ? 'Payment reference already exists' : 'Could not create payment' });
+  }
+});
+
+router.post(
+  '/:id/post-to-ledger',
+  requireJwtForGlPost,
+  requireGlPostRole,
+  requirePaymentGlClerkScope,
+  async (req, res) => {
+  if (!useDatabase()) {
+    res.status(503).json({ error: 'Database required for GL posting' });
+    return;
+  }
+
+  const company = await getOrCreateDefaultCompany();
+  const userId = (req as Request & { glAuth?: { sub?: string } }).glAuth?.sub ?? null;
+
+  try {
+    const result = await postPaymentToGeneralLedger(req.params.id);
+    await writeAuditLog({
+      companyId: company.id,
+      userId,
+      action: AuditAction.API_CALL,
+      module: 'payment_gl',
+      resourceId: req.params.id,
+      resourceType: 'Payment',
+      changes: { journalEntryId: result.journalEntryId, alreadyPosted: result.alreadyPosted ?? false },
+      ipAddress: req.ip ?? null,
+      userAgent: req.get('user-agent') ?? null,
+      success: true,
+    });
+    res.json({
+      journalEntryId: result.journalEntryId,
+      alreadyPosted: result.alreadyPosted ?? false,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Post failed';
+    await writeAuditLog({
+      companyId: company.id,
+      userId,
+      action: AuditAction.API_CALL,
+      module: 'payment_gl',
+      resourceId: req.params.id,
+      resourceType: 'Payment',
+      success: false,
+      errorMessage: msg,
+      ipAddress: req.ip ?? null,
+      userAgent: req.get('user-agent') ?? null,
+    });
+    res.status(400).json({ error: msg });
   }
 });
 
@@ -222,14 +365,22 @@ router.get('/:id', async (req, res) => {
       res.status(404).json({ error: 'Payment not found' });
       return;
     }
+    const companyFx = await prisma.company.findUniqueOrThrow({
+      where: { id: row.companyId },
+      select: { id: true, currency: true, useMultiCurrency: true },
+    });
+    const base = await enrichPaymentRow(
+      {
+        ...row,
+        invoices: row.invoices.map((app) => ({
+          invoice: { type: app.invoice.type },
+        })),
+      },
+      companyFx
+    );
     res.json({
       payment: {
-        ...mapPaymentRow({
-          ...row,
-          invoices: row.invoices.map((app) => ({
-            invoice: { type: app.invoice.type },
-          })),
-        }),
+        ...base,
         applications: row.invoices.map((app) => ({
           invoiceId: app.invoiceId,
           amount: dec(app.amount),

@@ -2,6 +2,8 @@
 
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
 import { aiRouter } from './routes/ai';
 import { accountsRouter } from './routes/accounts';
@@ -15,6 +17,17 @@ import { vendorsRouter } from './routes/vendors';
 import { paymentsRouter } from './routes/payments';
 import { companyRouter } from './routes/company';
 import { inventoryRouter } from './routes/inventory';
+import { periodCloseRouter } from './routes/period-close';
+import { dashboardRouter } from './routes/dashboard';
+import { authRouter } from './routes/auth';
+import { registrationsRouter } from './routes/registrations';
+import { exchangeRatesRouter } from './routes/exchange-rates';
+import { erpRouter } from './routes/erp';
+import { purchaseOrdersRouter } from './routes/purchase-orders';
+import { salesOrdersRouter } from './routes/sales-orders';
+import { bomRouter } from './routes/bom';
+import { productionOrdersRouter } from './routes/production-orders';
+import { logisticsRouter } from './routes/logistics';
 
 config();
 
@@ -22,8 +35,17 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
+app.set('trust proxy', 1);
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors());
-app.use(express.json());
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_MAX ?? 500),
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', apiLimiter);
+app.use(express.json({ limit: '512kb' }));
 
 // API Routes (paths mirror accounting-app/src/services/api.ts)
 app.use('/api/ai', aiRouter);
@@ -38,6 +60,17 @@ app.use('/api/vendors', vendorsRouter);
 app.use('/api/payments', paymentsRouter);
 app.use('/api/company', companyRouter);
 app.use('/api/inventory', inventoryRouter);
+app.use('/api/periods', periodCloseRouter);
+app.use('/api/dashboard', dashboardRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/registrations', registrationsRouter);
+app.use('/api/exchange-rates', exchangeRatesRouter);
+app.use('/api/erp', erpRouter);
+app.use('/api/purchase-orders', purchaseOrdersRouter);
+app.use('/api/sales-orders', salesOrdersRouter);
+app.use('/api/bom', bomRouter);
+app.use('/api/production-orders', productionOrdersRouter);
+app.use('/api/logistics', logisticsRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

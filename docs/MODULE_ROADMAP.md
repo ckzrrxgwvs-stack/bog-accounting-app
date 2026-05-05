@@ -1,5 +1,7 @@
 # Module roadmap (GAAP-aligned build order)
 
+**Coordinate systems:** The **phase numbers below (1–8)** are **accounting module build order**, not **product release phases** (Face I = accounting launch, Face II = ERP pack, etc.). For launch scope and ERP timing, see **`PRODUCT_PHASES.md`**. For NA focus and vertical depth goals, see **`PROGRAM_DIRECTION.md`**.
+
 Build sequence follows normal accounting flow: **foundation → master data → general ledger → subledgers → reporting → extensions**. Reports are used as **checkpoints** alongside modules, not only at the end.
 
 | Phase | Module | Scope (high level) | Depends on |

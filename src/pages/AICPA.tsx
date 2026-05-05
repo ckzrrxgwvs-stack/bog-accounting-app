@@ -1,8 +1,10 @@
 // AI CPA Chat interface
 
 import React, { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAIStore } from '@/stores/aiStore';
-import { Send, RefreshCw, Settings, Maximize2, Minimize2 } from 'lucide-react';
+import { useCompanyPolicy } from '@/hooks/useCompanyPolicy';
+import { Send, RefreshCw, Maximize2, Minimize2, PenLine } from 'lucide-react';
 import type { ChatMessage } from '@/types';
 
 function MessageBubble({ message }: { message: ChatMessage }) {
@@ -80,6 +82,7 @@ function SuggestedQuestions() {
 }
 
 export function AICPA() {
+  const { manualOperationsMode, loading: policyLoading } = useCompanyPolicy();
   const { messages, isTyping, sendMessage, clearMessages, createSession, currentSession } = useAIStore();
   const [input, setInput] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -94,7 +97,7 @@ export function AICPA() {
     if (!currentSession && messages.length === 0) {
       createSession();
     }
-  }, []);
+  }, [createSession, currentSession, messages.length]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,6 +114,38 @@ export function AICPA() {
       handleSubmit(e);
     }
   };
+
+  if (policyLoading) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-16 text-center text-sm text-gray-500">
+        Loading company policy…
+      </div>
+    );
+  }
+
+  if (manualOperationsMode) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-16">
+        <div className="rounded-xl border border-bog-rule bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-zinc-100 text-zinc-700">
+            <PenLine size={28} />
+          </div>
+          <h1 className="text-lg font-semibold text-bog-ink">AI CPA is disabled</h1>
+          <p className="mt-3 text-sm leading-relaxed text-zinc-600">
+            Your organization is in <strong>manual operations mode</strong>. AI-assisted chat and automated AI review
+            are turned off so accounting work follows conventional human-driven workflows only.
+          </p>
+          <p className="mt-4 text-sm text-zinc-500">
+            President, CFO, or Controller can change this under{' '}
+            <Link to="/settings/manual-operations" className="font-medium text-[hsl(var(--bog-accent))] underline-offset-2 hover:underline">
+              Manual operations
+            </Link>
+            .
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex flex-col h-[calc(100vh-8rem)] bg-white border border-gray-200 rounded-lg overflow-hidden ${

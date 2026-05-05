@@ -1,12 +1,22 @@
 // API routes for CFDI (Mexico electronic invoicing)
 
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import { cfdiService, type CFDIInvoice } from '../services/cfdiService';
 
 const router = Router();
 
+const requireCfdiEnabled: RequestHandler = (_req, res, next) => {
+  if (process.env.CFDI_ENABLED !== '1' && process.env.CFDI_ENABLED !== 'true') {
+    res.status(503).json({
+      error: 'CFDI API disabled. Set CFDI_ENABLED=true and configure PAC credentials.',
+    });
+    return;
+  }
+  next();
+};
+
 // POST /api/cfdi/stamp - Stamp a new CFDI
-router.post('/stamp', async (req, res) => {
+router.post('/stamp', requireCfdiEnabled, async (req, res) => {
   try {
     const invoice: CFDIInvoice = req.body;
 
@@ -25,7 +35,7 @@ router.post('/stamp', async (req, res) => {
 });
 
 // POST /api/cfdi/cancel - Cancel a CFDI
-router.post('/cancel', async (req, res) => {
+router.post('/cancel', requireCfdiEnabled, async (req, res) => {
   try {
     const { uuid, rfcEmisor } = req.body;
 
@@ -44,7 +54,7 @@ router.post('/cancel', async (req, res) => {
 });
 
 // GET /api/cfdi/verify/:uuid - Verify CFDI status with SAT
-router.get('/verify/:uuid', async (req, res) => {
+router.get('/verify/:uuid', requireCfdiEnabled, async (req, res) => {
   try {
     const { uuid } = req.params;
     const result = await cfdiService.verifyCFDI(uuid);
@@ -57,7 +67,7 @@ router.get('/verify/:uuid', async (req, res) => {
 });
 
 // POST /api/cfdi/payment-complement - Generate payment complement (Complemento de Pago)
-router.post('/payment-complement', async (req, res) => {
+router.post('/payment-complement', requireCfdiEnabled, async (req, res) => {
   try {
     const { paymentData, emisorRfc } = req.body;
 

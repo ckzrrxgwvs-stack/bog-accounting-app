@@ -2,6 +2,7 @@
 
 import OpenAI from 'openai';
 import type { Request, Response } from 'express';
+import { isManualOperationsModeActive } from '../lib/manualOperationsGate';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'demo-key',
@@ -118,6 +119,15 @@ export async function chatWithAI(
 // API endpoint handler
 export async function handleAIRequest(req: Request, res: Response) {
   try {
+    if (await isManualOperationsModeActive()) {
+      res.status(403).json({
+        error:
+          'AI CPA is turned off for this company. Manual operations mode is enabled — use standard ledger, AR, AP, and journal entry screens with human input only.',
+        code: 'MANUAL_OPERATIONS_MODE',
+      });
+      return;
+    }
+
     const { message, context } = req.body;
 
     if (!message) {

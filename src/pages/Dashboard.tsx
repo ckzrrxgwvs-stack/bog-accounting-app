@@ -1,6 +1,6 @@
 // Dashboard page con personalidad
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   TrendingUp,
@@ -19,6 +19,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
+import { api } from '@/services/api';
 import { StatusBadge, FeatureBadge } from '@/components/StatusBadge';
 
 interface KPICardProps {
@@ -127,6 +128,32 @@ function RecentTransaction({ date, description, amount, type, icon }: RecentTran
 
 export function Dashboard() {
   const { user } = useAuthStore();
+  const [opsNote, setOpsNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const r = await api.getDashboardSummary();
+      if (!alive || !r.success || !r.data) return;
+      const d = r.data as {
+        overdueArCount: number;
+        overdueApCount: number;
+        draftJournalCount: number;
+        pendingApprovalJournalCount: number;
+        lowStockItems: number;
+      };
+      const parts: string[] = [];
+      if (d.overdueArCount) parts.push(`${d.overdueArCount} overdue AR`);
+      if (d.overdueApCount) parts.push(`${d.overdueApCount} overdue AP`);
+      if (d.draftJournalCount) parts.push(`${d.draftJournalCount} draft journals`);
+      if (d.pendingApprovalJournalCount) parts.push(`${d.pendingApprovalJournalCount} journals pending approval`);
+      if (d.lowStockItems) parts.push(`${d.lowStockItems} low-stock items`);
+      if (parts.length) setOpsNote(parts.join(' · '));
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const kpis = [
     {
@@ -202,6 +229,11 @@ export function Dashboard() {
   return (
     <div className="bog-workspace border-b border-bog-rule">
       <div className="border-b border-bog-rule bg-white/85 px-6 py-6 backdrop-blur-sm lg:px-8">
+      {opsNote && (
+        <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-950">
+          <span className="font-medium">Reminders:</span> {opsNote}
+        </div>
+      )}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-3">

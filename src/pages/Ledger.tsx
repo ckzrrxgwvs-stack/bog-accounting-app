@@ -14,6 +14,7 @@ import {
   ledgerRow,
 } from '@/components/layout/ModuleWorkspace';
 import { api } from '@/services/api';
+import { formatMoney, useCompanyFx } from '@/hooks/useCompanyFx';
 
 interface JournalEntryRow {
   id: string;
@@ -29,6 +30,7 @@ const controlClass =
   'rounded-lg border border-bog-rule bg-white px-3 py-2 text-sm text-bog-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--bog-accent))]/25';
 
 export function Ledger() {
+  const { functionalCurrency, useMultiCurrency } = useCompanyFx();
   const [showFilters, setShowFilters] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('4');
   const [selectedYear, setSelectedYear] = useState('2026');
@@ -106,14 +108,17 @@ export function Ledger() {
     DELETED: 'bg-zinc-100 text-zinc-400',
   };
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  const formatCurrency = (amount: number) => formatMoney(amount, functionalCurrency);
 
   return (
     <ModuleWorkspace
       label="General ledger"
       title="Journal entries"
-      description="Review and post transactions. Amounts use tabular alignment for quick scanning."
+      description={
+        useMultiCurrency
+          ? `Review and post transactions. Amounts are shown in functional currency (${functionalCurrency}); subledger documents may originate in foreign currency before conversion at post time.`
+          : 'Review and post transactions. Amounts use tabular alignment for quick scanning.'
+      }
       actions={
         <>
           <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)} className={controlClass}>

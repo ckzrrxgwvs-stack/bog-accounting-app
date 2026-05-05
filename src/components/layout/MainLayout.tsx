@@ -13,30 +13,62 @@ import {
   Package,
   Receipt,
   BarChart3,
+  Table2,
   MessageSquare,
+  LayoutGrid,
+  Sparkles,
+  ShoppingCart,
+  ClipboardList,
   Settings,
   Users,
   LogOut,
   Menu,
   X,
   FileCheck,
+  Landmark,
+  Building2,
+  UserCircle,
+  Lock,
+  PenLine,
 } from 'lucide-react';
+import { useCompanyPolicy } from '@/hooks/useCompanyPolicy';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, module: 'dashboard' },
   { name: 'Chart of accounts', href: '/ledger/coa', icon: Layers, module: 'general_ledger' },
+  { name: 'Opening balances', href: '/ledger/opening-balances', icon: Landmark, module: 'general_ledger' },
+  { name: 'Period close', href: '/ledger/period-close', icon: Lock, module: 'general_ledger' },
   { name: 'General Ledger', href: '/ledger', icon: BookOpen, module: 'general_ledger' },
+  { name: 'Customers', href: '/master/customers', icon: UserCircle, module: 'accounts_receivable' },
+  { name: 'Vendors', href: '/master/vendors', icon: Building2, module: 'accounts_payable' },
   { name: 'Accounts Payable', href: '/ap', icon: CreditCard, module: 'accounts_payable' },
   { name: 'Accounts Receivable', href: '/ar', icon: FileText, module: 'accounts_receivable' },
   { name: 'Inventory', href: '/inventory', icon: Package, module: 'inventory' },
   { name: 'Payroll', href: '/payroll', icon: Receipt, module: 'payroll' },
   { name: 'CFDI (Mexico)', href: '/cfdi', icon: FileCheck, module: 'cfdi' },
   { name: 'Reports', href: '/reports', icon: BarChart3, module: 'reports' },
-  { name: 'AI CPA Assistant', href: '/ai-cpa', icon: MessageSquare, module: 'ai_cpa' },
+  { name: 'Data Studio', href: '/data-studio', icon: Table2, module: 'reports' },
+  { name: 'ERP hub', href: '/erp', icon: LayoutGrid, module: 'erp' },
+  {
+    name: 'ERP Assistant',
+    href: '/erp/assistant',
+    icon: Sparkles,
+    module: 'erp',
+    hideWhenManualOps: true,
+  },
+  { name: 'Purchase orders', href: '/erp/purchase-orders', icon: ShoppingCart, module: 'erp' },
+  { name: 'Sales orders', href: '/erp/sales-orders', icon: ClipboardList, module: 'erp' },
+  { name: 'AI CPA Assistant', href: '/ai-cpa', icon: MessageSquare, module: 'ai_cpa', hideWhenManualOps: true },
 ];
 
 const bottomNavigation = [
   { name: 'Users', href: '/users', icon: Users, module: 'users' },
+  {
+    name: 'Manual operations',
+    href: '/settings/manual-operations',
+    icon: PenLine,
+    module: '_executive_only',
+  },
   { name: 'Settings', href: '/settings', icon: Settings, module: 'settings' },
 ];
 
@@ -49,9 +81,24 @@ export function MainLayout() {
   const location = useLocation();
   const { user, logout, hasModuleAccess } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { manualOperationsMode, loading: policyLoading } = useCompanyPolicy();
 
-  const filteredNav = navigation.filter((item) => hasModuleAccess(item.module));
-  const filteredBottomNav = bottomNavigation.filter((item) => hasModuleAccess(item.module));
+  const isExecutive = Boolean(
+    user && (user.role === 'PRESIDENT' || user.role === 'CFO' || user.role === 'CONTROLLER')
+  );
+
+  const filteredNav = navigation.filter((item) => {
+    if (!hasModuleAccess(item.module)) return false;
+    if ('hideWhenManualOps' in item && item.hideWhenManualOps && !policyLoading && manualOperationsMode) {
+      return false;
+    }
+    return true;
+  });
+
+  const filteredBottomNav = bottomNavigation.filter((item) => {
+    if (item.module === '_executive_only') return isExecutive;
+    return hasModuleAccess(item.module);
+  });
 
   return (
     <div className="min-h-screen bg-bog-paper text-bog-ink">

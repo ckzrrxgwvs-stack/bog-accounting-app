@@ -6,6 +6,7 @@ import type { UserRoleType } from '@/types';
 export const ROLE_MODULE_ACTIONS: Record<UserRoleType, Record<string, string[]>> = {
   PRESIDENT: {
     dashboard: ['read', 'create', 'update', 'delete', 'export'],
+    erp: ['read', 'create', 'update', 'delete', 'export'],
     general_ledger: ['read', 'create', 'update', 'delete', 'export'],
     accounts_payable: ['read', 'create', 'update', 'delete', 'export'],
     accounts_receivable: ['read', 'create', 'update', 'delete', 'export'],
@@ -19,6 +20,7 @@ export const ROLE_MODULE_ACTIONS: Record<UserRoleType, Record<string, string[]>>
   },
   CFO: {
     dashboard: ['read', 'create', 'update', 'delete', 'export'],
+    erp: ['read', 'create', 'update', 'export'],
     general_ledger: ['read', 'create', 'update', 'export'],
     accounts_payable: ['read', 'create', 'update', 'export'],
     accounts_receivable: ['read', 'create', 'update', 'export'],
@@ -32,6 +34,7 @@ export const ROLE_MODULE_ACTIONS: Record<UserRoleType, Record<string, string[]>>
   },
   CONTROLLER: {
     dashboard: ['read', 'create', 'update', 'export'],
+    erp: ['read', 'create', 'update', 'export'],
     general_ledger: ['read', 'create', 'update', 'export'],
     accounts_payable: ['read', 'create', 'update', 'export'],
     accounts_receivable: ['read', 'create', 'update', 'export'],
@@ -45,6 +48,7 @@ export const ROLE_MODULE_ACTIONS: Record<UserRoleType, Record<string, string[]>>
   },
   ACCOUNTANT: {
     dashboard: ['read', 'create', 'export'],
+    erp: ['read', 'create', 'update', 'export'],
     general_ledger: ['read', 'create', 'update', 'export'],
     accounts_payable: ['read', 'create', 'update', 'export'],
     accounts_receivable: ['read', 'create', 'update', 'export'],
@@ -57,6 +61,7 @@ export const ROLE_MODULE_ACTIONS: Record<UserRoleType, Record<string, string[]>>
   },
   AP_CLERK: {
     dashboard: ['read', 'create', 'export'],
+    erp: ['read', 'create', 'update', 'export'],
     general_ledger: [],
     accounts_payable: ['read', 'create', 'update', 'export'],
     accounts_receivable: [],
@@ -69,6 +74,7 @@ export const ROLE_MODULE_ACTIONS: Record<UserRoleType, Record<string, string[]>>
   },
   AR_CLERK: {
     dashboard: ['read', 'create', 'export'],
+    erp: ['read', 'create', 'update', 'export'],
     general_ledger: [],
     accounts_payable: [],
     accounts_receivable: ['read', 'create', 'update', 'export'],
@@ -81,6 +87,7 @@ export const ROLE_MODULE_ACTIONS: Record<UserRoleType, Record<string, string[]>>
   },
   READONLY: {
     dashboard: ['read', 'export'],
+    erp: ['read', 'export'],
     general_ledger: ['read', 'export'],
     accounts_payable: ['read', 'export'],
     accounts_receivable: ['read', 'export'],

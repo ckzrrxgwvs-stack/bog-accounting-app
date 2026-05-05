@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
-import { Mail, Lock, Eye, EyeOff, Shield, Sparkles, ArrowRight, Check } from 'lucide-react';
+import { api } from '@/services/api';
+import { Mail, Lock, Eye, EyeOff, Shield, Sparkles, ArrowRight, Check, KeyRound } from 'lucide-react';
 import { CubeLogoMark } from '@/components/Logo';
 
 export function Login() {
@@ -14,6 +15,11 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [mfaCode, setMfaCode] = useState('');
   const [error, setError] = useState('');
+  const [regCode, setRegCode] = useState('');
+  const [regOrgName, setRegOrgName] = useState('');
+  const [regBusy, setRegBusy] = useState(false);
+  const [regMessage, setRegMessage] = useState<string | null>(null);
+  const [regError, setRegError] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,6 +30,33 @@ export function Login() {
     } catch (err) {
       setError('Invalid email or password');
     }
+  };
+
+  const handleActivateRegistration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegError(null);
+    setRegMessage(null);
+    if (!regCode.trim()) {
+      setRegError('Enter your registration code.');
+      return;
+    }
+    setRegBusy(true);
+    const res = await api.activateRegistration({
+      code: regCode.trim(),
+      organizationName: regOrgName.trim() || undefined,
+    });
+    setRegBusy(false);
+    if (!res.success) {
+      setRegError(res.error ?? 'Activation failed');
+      return;
+    }
+    const d = res.data as { companyName?: string; message?: string; alreadyActivated?: boolean };
+    setRegMessage(
+      d.message ??
+        (d.companyName
+          ? `Organization "${d.companyName}" is ready. Sign in with a user account created for that company.`
+          : 'Code redeemed.')
+    );
   };
 
   const handleMFAVerify = async (e: React.FormEvent) => {
@@ -207,6 +240,47 @@ export function Login() {
               )}
             </button>
           </form>
+
+          <details className="mt-6 rounded-2xl border border-gray-100 bg-gray-50/90">
+            <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-gray-800 flex items-center gap-2 list-none">
+              <KeyRound size={16} className="text-gray-500" />
+              Have a registration code? (signed customer)
+            </summary>
+            <div className="px-4 pb-4 pt-0 border-t border-gray-100">
+              <p className="text-xs text-gray-500 mt-3 mb-3">
+                Redeem the code from your vendor to create your organization and chart of accounts. Does not create login
+                users — your administrator still invites users or uses existing credentials for this organization.
+              </p>
+              <form onSubmit={handleActivateRegistration} className="space-y-3">
+                <input
+                  type="text"
+                  value={regCode}
+                  onChange={(e) => setRegCode(e.target.value)}
+                  placeholder="XXXX-XXXX-XXXX-XXXX"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 font-mono text-sm tracking-wide focus:outline-none focus:ring-2 focus:ring-black"
+                />
+                <input
+                  type="text"
+                  value={regOrgName}
+                  onChange={(e) => setRegOrgName(e.target.value)}
+                  placeholder="Organization name (optional override)"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                />
+                {regError && <p className="text-red-600 text-xs bg-red-50 py-2 px-3 rounded-lg">{regError}</p>}
+                {regMessage && <p className="text-emerald-800 text-xs bg-emerald-50 py-2 px-3 rounded-lg">{regMessage}</p>}
+                <button
+                  type="submit"
+                  disabled={regBusy}
+                  className="w-full border border-black text-black py-3 rounded-xl text-sm font-semibold hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {regBusy ? 'Activating…' : 'Activate registration'}
+                </button>
+              </form>
+            </div>
+          </details>
 
           {/* Security Badge */}
           <div className="mt-6 flex items-center justify-center">

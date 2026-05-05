@@ -9,11 +9,14 @@ import {
   BookOpen,
   FileText,
   Receipt,
+  Wallet,
   Package,
   Users,
   Settings,
   BarChart3,
   Brain,
+  Sparkles,
+  Table2,
   FileCheck,
   Calculator,
   ChevronRight,
@@ -21,7 +24,9 @@ import {
   Shield,
   Bell,
   HelpCircle,
+  PenLine,
 } from 'lucide-react';
+import { useCompanyPolicy } from '@/hooks/useCompanyPolicy';
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -73,6 +78,11 @@ interface SidebarProps {
 
 export function Sidebar({ className = '' }: SidebarProps) {
   const { user, hasModuleAccess, logout } = useAuthStore();
+  const { manualOperationsMode, loading: policyLoading } = useCompanyPolicy();
+
+  const isExecutive = Boolean(
+    user && (user.role === 'PRESIDENT' || user.role === 'CFO' || user.role === 'CONTROLLER')
+  );
 
   const navItems = [
     {
@@ -97,6 +107,13 @@ export function Sidebar({ className = '' }: SidebarProps) {
       label: 'Accounts Receivable',
       href: '/ar',
       condition: hasModuleAccess('accounts_receivable'),
+    },
+    {
+      icon: <Wallet size={20} />,
+      label: 'Payments',
+      href: '/payments',
+      condition:
+        hasModuleAccess('accounts_receivable') || hasModuleAccess('accounts_payable'),
     },
     {
       icon: <Package size={20} />,
@@ -124,11 +141,23 @@ export function Sidebar({ className = '' }: SidebarProps) {
       condition: hasModuleAccess('reports'),
     },
     {
+      icon: <Table2 size={20} />,
+      label: 'Data Studio',
+      href: '/data-studio',
+      condition: hasModuleAccess('reports'),
+    },
+    {
       icon: <Brain size={20} />,
       label: 'AI CPA',
       href: '/ai-cpa',
       isNew: true,
-      condition: hasModuleAccess('ai_cpa'),
+      condition: hasModuleAccess('ai_cpa') && (policyLoading || !manualOperationsMode),
+    },
+    {
+      icon: <Sparkles size={20} />,
+      label: 'ERP Assistant',
+      href: '/erp/assistant',
+      condition: hasModuleAccess('erp') && (policyLoading || !manualOperationsMode),
     },
   ];
 
@@ -138,6 +167,12 @@ export function Sidebar({ className = '' }: SidebarProps) {
       label: 'Users',
       href: '/users',
       condition: hasModuleAccess('users'),
+    },
+    {
+      icon: <PenLine size={20} />,
+      label: 'Manual operations',
+      href: '/settings/manual-operations',
+      condition: isExecutive,
     },
     {
       icon: <Settings size={20} />,

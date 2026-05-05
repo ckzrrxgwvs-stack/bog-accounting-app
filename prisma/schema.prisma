@@ -32,6 +32,28 @@ model Company {
   useMultiCurrency Boolean @default(false)
   useCostCenters   Boolean @default(false)
 
+  // Bank connectivity (opt-in; no provider wired in-app yet — flags gate future feeds / payment rails)
+  useBankFeeds              Boolean @default(false) // imported transactions, reconciliation
+  useBankOutboundPayments   Boolean @default(false) // initiated transfers / ACH from app
+  bankIntegrationNotes      String?  // e.g. intended provider or rollout notes (optional)
+
+  // US federal tax / IRS-oriented workflows (opt-in; no IRS, SSA, or e-file transmitter connected in-app)
+  useUsPayrollTaxReporting  Boolean @default(false) // W-2, 941, deposits — future certified path
+  useUsInformationReturns   Boolean @default(false) // 1099 family (e.g. FIRE-style) — future
+  usTaxIntegrationNotes     String?  // intended provider, EFIN holder, rollout (optional)
+
+  /** When true, AI CPA chat, ERP Assistant (clerks/CS), automated accounting review, and related AI endpoints are disabled — classic human-driven workflows only (executive roles only). */
+  manualOperationsMode      Boolean @default(false)
+
+  // Default GL account codes (must exist in chart of accounts for posting AR/AP/invoices/payments)
+  glCashAccountCode          String? @default("1100")
+  glArAccountCode            String? @default("1200")
+  glApAccountCode            String? @default("2100")
+  glRevenueAccountCode       String? @default("4100")
+  glExpenseAccountCode       String? @default("6100")
+  glSalesTaxPayableAccountCode String? @default("2150")
+  glPurchasesExpenseAccountCode String? @default("5100")
+
   // Timestamps
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -49,8 +71,71 @@ model Company {
   costCenters     CostCenter[]
   exchangeRates   ExchangeRate[]
   inventoryItems   InventoryItem[]
+  purchaseOrders   PurchaseOrder[]
+  salesOrders      SalesOrder[]
+  bomHeaders       BomHeader[]
+  productionOrders ProductionOrder[]
   chatSessions    ChatSession[]
   auditLogs       AuditLog[]
+  closedPeriods   ClosedPeriod[]
+
+  /** Logistics & traceability — carriers, locations, shipments, compliance docs */
+  carriers              Carrier[]
+  warehouseLocations    WarehouseLocation[]
+  shipments             Shipment[]
+  inboundAsns           InboundAsn[]
+  rmaHeaders            RmaHeader[]
+  inventoryLots         InventoryLot[]
+  inventorySerials      InventorySerial[]
+  logisticsBarcodes     LogisticsBarcode[]
+  freightCharges        FreightCharge[]
+  customerShippingProfiles CustomerShippingProfile[]
+  shipmentDocuments     ShipmentDocument[]
+
+  /** Set when this tenant is activated with a signed-customer registration code (optional 1:1) */
+  customerRegistration CustomerRegistration?
+}
+
+// Signed-customer registration keys (product-key style; tracked per issued customer)
+model CustomerRegistration {
+  id               String   @id @default(cuid())
+  /** Uppercase alphanumeric, no dashes (16 chars), Crockford-like alphabet */
+  codeNormalized   String   @unique
+  customerName     String?
+  contactEmail     String?
+  internalNotes    String?
+  status           CustomerRegistrationStatus @default(ISSUED)
+  issuedAt         DateTime @default(now())
+  expiresAt        DateTime?
+  activatedAt      DateTime?
+  revokedAt        DateTime?
+  companyId        String?  @unique
+  company          Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([contactEmail])
+  @@index([issuedAt])
+}
+
+enum CustomerRegistrationStatus {
+  ISSUED
+  ACTIVATED
+  REVOKED
+}
+
+// Closed accounting periods (no posting to journal date in a closed month)
+model ClosedPeriod {
+  id         String   @id @default(cuid())
+  companyId  String
+  year       Int
+  period     Int      // 1–12 calendar month
+  closedAt   DateTime @default(now())
+  closedBy   String?
+
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, year, period])
+  @@index([companyId])
 }
 
 model User {
@@ -174,6 +259,10 @@ model JournalEntry {
   period       Int      // 1-12 for month
   year         Int
 
+  // Source document (invoice / payment automation)
+  sourceType   String?
+  sourceId     String?
+
   // Timestamps
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -184,8 +273,13 @@ model JournalEntry {
   companyId    String
   lines        JournalLine[]
 
+  // 1:1 back-links from automated GL posting (Invoice / Payment hold the FK)
+  glSourceInvoice Invoice?  @relation("GlJournalInvoice")
+  glSourcePayment Payment?  @relation("GlJournalPayment")
+
   @@index([companyId, date])
   @@index([companyId, period, year])
+  @@index([companyId, sourceType, sourceId])
 }
 
 enum EntryStatus {
@@ -290,6 +384,10 @@ model Customer {
   company      Company   @relation(fields: [companyId], references: [id])
   companyId    String
   invoices     Invoice[]
+  salesOrders  SalesOrder[]
+  shippingProfile CustomerShippingProfile?
+  shipments    Shipment[]
+  rmas         RmaHeader[]
 
   @@unique([companyId, code])
 }
@@ -330,6 +428,8 @@ model Vendor {
   company      Company   @relation(fields: [companyId], references: [id])
   companyId    String
   invoices     Invoice[]
+  purchaseOrders PurchaseOrder[]
+  inboundAsns  InboundAsn[]
 
   @@unique([companyId, code])
 }
@@ -351,13 +451,14 @@ model Invoice {
   issueDate    DateTime
   dueDate      DateTime
 
-  // Amounts
+  // Amounts (stored in `currency` below — functional reporting converts via exchange rates)
   subtotal     Decimal   @db.Decimal(18, 2)
   taxAmount    Decimal   @default(0) @db.Decimal(18, 2)
   discountAmount Decimal  @default(0) @db.Decimal(18, 2)
   total        Decimal   @db.Decimal(18, 2)
   paidAmount   Decimal   @default(0) @db.Decimal(18, 2)
   balance      Decimal   @db.Decimal(18, 2)
+  currency     String    @default("USD") // ISO 4217; together with Company.currency drives FX
 
   // Status
   status       InvoiceStatus @default(DRAFT)
@@ -370,6 +471,18 @@ model Invoice {
   // Notes
   notes        String?
   terms        String?
+
+  // GL posting (subledger + journal)
+  glPostedAt   DateTime?
+  glJournalEntryId String? @unique
+  glJournalEntry   JournalEntry? @relation("GlJournalInvoice", fields: [glJournalEntryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  /** ERP traceability: vendor bill generated from purchase receipt */
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  /** ERP traceability: customer invoice generated from sales shipment */
+  salesOrderId    String?
+  salesOrder      SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
 
   // Timestamps
   createdAt    DateTime @default(now())
@@ -389,6 +502,8 @@ model Invoice {
   @@index([companyId, status])
   @@index([companyId, customerId])
   @@index([companyId, vendorId])
+  @@index([purchaseOrderId])
+  @@index([salesOrderId])
 }
 
 enum InvoiceType {
@@ -436,6 +551,7 @@ model Payment {
   paymentNumber String
   date         DateTime
   amount       Decimal  @db.Decimal(18, 2)
+  currency     String   @default("USD")
   method       PaymentMethod
 
   // Reference
@@ -450,6 +566,10 @@ model Payment {
 
   // Notes
   notes        String?
+
+  glPostedAt   DateTime?
+  glJournalEntryId String? @unique
+  glJournalEntry   JournalEntry? @relation("GlJournalPayment", fields: [glJournalEntryId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   // Timestamps
   createdAt    DateTime @default(now())
@@ -496,6 +616,183 @@ model PaymentApplication {
 }
 
 // ============================================
+// ERP — OPERATIONAL ORDERS (procurement & order-to-cash shells)
+// Document lifecycle: draft → approved/confirmed → partial receipt/shipment → closed.
+// Designed for the same integration patterns as tier-one ERPs (operational doc → financial posting)
+// without coupling to any vendor’s proprietary schema.
+// ============================================
+
+enum PurchaseOrderStatus {
+  DRAFT
+  APPROVED
+  PARTIALLY_RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  PARTIALLY_SHIPPED
+  CLOSED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id           String   @id @default(cuid())
+  poNumber     String
+  vendorId     String
+  orderDate    DateTime
+  expectedDate DateTime?
+  status       PurchaseOrderStatus @default(DRAFT)
+  currency     String   @default("USD")
+  subtotal     Decimal  @db.Decimal(18, 2)
+  taxAmount    Decimal  @default(0) @db.Decimal(18, 2)
+  total        Decimal  @db.Decimal(18, 2)
+  notes        String?
+
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  vendor       Vendor   @relation(fields: [vendorId], references: [id])
+  lines        PurchaseOrderLine[]
+  invoices     Invoice[]
+  inboundAsns  InboundAsn[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([companyId, poNumber])
+  @@index([companyId, status])
+}
+
+model PurchaseOrderLine {
+  id                String   @id @default(cuid())
+  lineNumber        Int      @default(1)
+  description       String
+  quantity          Decimal  @db.Decimal(18, 4)
+  quantityReceived  Decimal  @default(0) @db.Decimal(18, 4)
+  unitCost          Decimal  @db.Decimal(18, 4)
+  lineTotal         Decimal  @db.Decimal(18, 2)
+  inventoryItemId   String?
+
+  purchaseOrderId   String
+  purchaseOrder     PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  inventoryItem     InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+
+  @@index([purchaseOrderId])
+}
+
+model SalesOrder {
+  id                String   @id @default(cuid())
+  soNumber          String
+  customerId        String
+  orderDate         DateTime
+  requestedShipDate DateTime?
+  status            SalesOrderStatus @default(DRAFT)
+  currency          String   @default("USD")
+  subtotal          Decimal  @db.Decimal(18, 2)
+  taxAmount         Decimal  @default(0) @db.Decimal(18, 2)
+  total             Decimal  @db.Decimal(18, 2)
+  notes             String?
+
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id])
+  customer          Customer @relation(fields: [customerId], references: [id])
+  lines             SalesOrderLine[]
+  invoices          Invoice[]
+  shipments         Shipment[]
+  rmaHeaders        RmaHeader[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([companyId, soNumber])
+  @@index([companyId, status])
+}
+
+model SalesOrderLine {
+  id               String   @id @default(cuid())
+  lineNumber       Int      @default(1)
+  description      String
+  quantity         Decimal  @db.Decimal(18, 4)
+  quantityShipped  Decimal  @default(0) @db.Decimal(18, 4)
+  unitPrice        Decimal  @db.Decimal(18, 4)
+  lineTotal        Decimal  @db.Decimal(18, 2)
+  inventoryItemId  String?
+
+  salesOrderId     String
+  salesOrder       SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  inventoryItem    InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  shipmentLines    ShipmentLine[]
+
+  @@index([salesOrderId])
+}
+
+// ============================================
+// ERP — MANUFACTURING (BOM + production orders → inventory + future GL bridge)
+// ============================================
+
+model BomHeader {
+  id                  String   @id @default(cuid())
+  companyId           String
+  finishedGoodsItemId String
+  notes               String?
+
+  company             Company  @relation(fields: [companyId], references: [id])
+  finishedGoods       InventoryItem @relation("FgBom", fields: [finishedGoodsItemId], references: [id])
+  lines               BomLine[]
+  productionOrders    ProductionOrder[]
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([companyId, finishedGoodsItemId])
+  @@index([companyId])
+}
+
+model BomLine {
+  id               String   @id @default(cuid())
+  bomHeaderId      String
+  componentItemId  String
+  quantityPer      Decimal  @db.Decimal(18, 4) // component units per 1 FG unit
+
+  bomHeader        BomHeader @relation(fields: [bomHeaderId], references: [id], onDelete: Cascade)
+  component        InventoryItem @relation("BomComponent", fields: [componentItemId], references: [id])
+
+  @@index([bomHeaderId])
+}
+
+enum ProductionOrderStatus {
+  DRAFT
+  RELEASED
+  COMPLETED
+  CANCELLED
+}
+
+model ProductionOrder {
+  id                  String   @id @default(cuid())
+  orderNumber         String
+  companyId           String
+  finishedGoodsItemId String
+  bomHeaderId         String?
+  quantityOrdered     Decimal  @db.Decimal(18, 4)
+  quantityCompleted   Decimal  @default(0) @db.Decimal(18, 4)
+  status              ProductionOrderStatus @default(DRAFT)
+  orderDate           DateTime @default(now())
+  notes               String?
+
+  company             Company  @relation(fields: [companyId], references: [id])
+  finishedGoods       InventoryItem @relation("ProductionFg", fields: [finishedGoodsItemId], references: [id])
+  bomHeader           BomHeader? @relation(fields: [bomHeaderId], references: [id], onDelete: SetNull)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([companyId, orderNumber])
+  @@index([companyId, status])
+}
+
+// ============================================
 // INVENTORY
 // ============================================
 
@@ -535,7 +832,16 @@ model InventoryItem {
   companyId    String
 
   invoiceLines InvoiceLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+  salesOrderLines    SalesOrderLine[]
+  bomAsFinished      BomHeader[] @relation("FgBom")
+  bomAsComponent     BomLine[]   @relation("BomComponent")
+  productionAsOutput ProductionOrder[] @relation("ProductionFg")
   transactions InventoryTransaction[]
+  inventoryLots     InventoryLot[]
+  inventorySerials  InventorySerial[]
+  shipmentLines     ShipmentLine[]
+  rmaLines          RmaLine[]
 
   @@unique([companyId, sku])
 }
@@ -578,6 +884,428 @@ enum InventoryTransactionType {
   ADJUSTMENT_OUT
   RETURN_IN
   RETURN_OUT
+}
+
+// ============================================
+// ERP — LOGISTICS, TRACEABILITY, COMPLIANCE DOCS
+// Master data, shipments, ASN, RMA, lot/serial, freight audit, barcodes
+// ============================================
+
+/** Carrier / logistics provider master (SCAC, accounts, service visibility) */
+model Carrier {
+  id              String   @id @default(cuid())
+  companyId       String
+  name            String
+  scacCode        String?  // Standard Carrier Alpha Code
+  accountNumber   String?
+  mcNumber        String?  // Motor carrier (US)
+  dotNumber       String?
+  website         String?
+  apiNotes        String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company         Company  @relation(fields: [companyId], references: [id])
+  shipments       Shipment[]
+  freightCharges  FreightCharge[]
+  shippingProfiles CustomerShippingProfile[]
+
+  @@index([companyId])
+}
+
+/** Warehouse / bin — inventory location & status by place */
+model WarehouseLocation {
+  id          String   @id @default(cuid())
+  companyId   String
+  code        String
+  name        String
+  zone        String?
+  aisle       String?
+  bin         String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company  @relation(fields: [companyId], references: [id])
+  serials     InventorySerial[]
+  shipmentLines ShipmentLine[]
+  shippingProfiles CustomerShippingProfile[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+}
+
+/** Customer ship-to defaults & instructions — master for outbound accuracy */
+model CustomerShippingProfile {
+  id                      String   @id @default(cuid())
+  companyId               String
+  customerId              String   @unique
+  defaultCarrierId        String?
+  defaultShipFromLocationId String?
+  shippingInstructions    String?  @db.Text
+  labelFormat             String?  // e.g. ZPL, PDF_4x6
+  commercialInvoiceNotes  String?  @db.Text
+  hazmatNotes             String?  @db.Text
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  company                 Company  @relation(fields: [companyId], references: [id])
+  customer                Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  defaultCarrier          Carrier? @relation(fields: [defaultCarrierId], references: [id], onDelete: SetNull)
+  defaultShipFromLocation WarehouseLocation? @relation(fields: [defaultShipFromLocationId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+}
+
+enum LotStatus {
+  ACTIVE
+  QUARANTINE
+  EXPIRED
+  DEPLETED
+}
+
+/** Lot / batch — traceability & compliance */
+model InventoryLot {
+  id             String    @id @default(cuid())
+  companyId      String
+  inventoryItemId String
+  lotNumber      String
+  manufactureDate DateTime?
+  expiryDate     DateTime?
+  supplierLot    String?
+  quantityOnHand Decimal   @default(0) @db.Decimal(18, 4)
+  unitCost       Decimal?  @db.Decimal(18, 4)
+  status         LotStatus @default(ACTIVE)
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  company        Company   @relation(fields: [companyId], references: [id])
+  item           InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  serials        InventorySerial[]
+  shipmentLines  ShipmentLine[]
+  rmaLines       RmaLine[]
+
+  @@unique([companyId, inventoryItemId, lotNumber])
+  @@index([companyId, lotNumber])
+}
+
+enum SerialStatus {
+  AVAILABLE
+  ALLOCATED
+  RESERVED
+  SHIPPED
+  RETURNED
+  SCRAPPED
+}
+
+/** Serialized unit-level traceability */
+model InventorySerial {
+  id                  String       @id @default(cuid())
+  companyId           String
+  inventoryItemId     String
+  inventoryLotId      String?
+  warehouseLocationId String?
+  serialNumber        String
+  status              SerialStatus @default(AVAILABLE)
+  shipmentId          String?
+  notes               String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  company             Company      @relation(fields: [companyId], references: [id])
+  item                InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  lot                 InventoryLot? @relation(fields: [inventoryLotId], references: [id], onDelete: SetNull)
+  warehouseLocation   WarehouseLocation? @relation(fields: [warehouseLocationId], references: [id], onDelete: SetNull)
+  shipment            Shipment?    @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, serialNumber])
+  @@index([companyId, inventoryItemId])
+  @@index([shipmentId])
+}
+
+enum ShipmentStatus {
+  DRAFT
+  PACKED
+  LABEL_PRINTED
+  IN_TRANSIT
+  DELIVERED
+  EXCEPTION
+  CANCELLED
+}
+
+enum FreightTerms {
+  PREPAID
+  COLLECT
+  THIRD_PARTY
+}
+
+/** Outbound shipment — ties to SO; hosts BOL, packing, labels, confirmations */
+model Shipment {
+  id                   String         @id @default(cuid())
+  companyId            String
+  shipmentNumber       String
+  salesOrderId         String?
+  customerId           String
+  carrierId            String?
+  status               ShipmentStatus @default(DRAFT)
+  freightTerms         FreightTerms   @default(PREPAID)
+  shipDate             DateTime?
+  estimatedDelivery    DateTime?
+  deliveredAt          DateTime?
+  trackingNumber       String?
+  masterBolNumber      String?       // Bill of lading (master)
+  proNumber            String?
+  serviceLevel         String?
+  totalWeight          Decimal?      @db.Decimal(18, 4)
+  weightUnit           String?       @default("LB")
+  packageCount         Int           @default(1)
+  confirmationNotes    String?       @db.Text
+  confirmationReceivedAt DateTime?
+  shipFromAddress      Json?         // snapshot
+  shipToAddress        Json?
+  internalNotes        String?       @db.Text
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  company              Company       @relation(fields: [companyId], references: [id])
+  salesOrder           SalesOrder?   @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  customer             Customer      @relation(fields: [customerId], references: [id])
+  carrier              Carrier?      @relation(fields: [carrierId], references: [id], onDelete: SetNull)
+  lines                ShipmentLine[]
+  documents            ShipmentDocument[]
+  events               ShipmentEvent[]
+  freightCharges       FreightCharge[]
+  serials              InventorySerial[]
+
+  @@unique([companyId, shipmentNumber])
+  @@index([companyId, status])
+  @@index([salesOrderId])
+}
+
+model ShipmentLine {
+  id                   String   @id @default(cuid())
+  shipmentId           String
+  salesOrderLineId     String?
+  inventoryItemId      String?
+  description          String
+  quantity             Decimal  @db.Decimal(18, 4)
+  packageNumber        Int      @default(1) // packing list grouping (carton)
+  inventoryLotId       String?
+  warehouseLocationId  String?
+  serialNumbersSnapshot Json?   // optional denormalized list for packing slip / audit
+  weight               Decimal? @db.Decimal(18, 4)
+
+  shipment             Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  salesOrderLine       SalesOrderLine? @relation(fields: [salesOrderLineId], references: [id], onDelete: SetNull)
+  inventoryItem        InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  lot                  InventoryLot? @relation(fields: [inventoryLotId], references: [id], onDelete: SetNull)
+  warehouseLocation    WarehouseLocation? @relation(fields: [warehouseLocationId], references: [id], onDelete: SetNull)
+
+  @@index([shipmentId])
+}
+
+/** Commercial invoice, BOL, packing slip/list, ASN output, custom forms, labels — compliance & visibility */
+enum ShipmentDocumentType {
+  BOL
+  PACKING_SLIP
+  PACKING_LIST
+  COMMERCIAL_INVOICE
+  CUSTOM_FORM
+  SHIPPING_LABEL
+  SHIPMENT_CONFIRMATION
+  DELIVERY_RECEIPT
+  FREIGHT_BILL_OF_LADING
+  ADVANCED_SHIPPING_NOTICE
+  TRANSPORTATION_RECORD
+  OTHER
+}
+
+model ShipmentDocument {
+  id             String               @id @default(cuid())
+  companyId      String
+  shipmentId     String
+  documentType   ShipmentDocumentType
+  documentNumber String
+  issuedAt       DateTime             @default(now())
+  templateKey    String?              // custom form / label template id
+  externalUrl    String?              // stored PDF URL
+  payload        Json?                // structured line items, HTS, Incoterms, etc.
+  notes          String?
+
+  company        Company              @relation(fields: [companyId], references: [id])
+  shipment       Shipment             @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+  @@index([companyId, documentType])
+}
+
+/** Transactional shipping record — every scan / status / integration touch */
+enum ShipmentEventType {
+  CREATED
+  PICKED
+  PACKED
+  WEIGHED
+  LABEL_PRINTED
+  DISPATCHED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  EXCEPTION
+  POD_CAPTURED
+  EDI_RECEIVED
+  CARRIER_WEBHOOK
+}
+
+model ShipmentEvent {
+  id          String            @id @default(cuid())
+  shipmentId  String
+  eventType   ShipmentEventType
+  occurredAt  DateTime          @default(now())
+  source      String?           // USER, CARRIER_API, EDI, MOBILE
+  reference   String?
+  metadata    Json?
+
+  shipment    Shipment          @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId, occurredAt])
+}
+
+enum FreightChargeCategory {
+  FREIGHT
+  FUEL
+  ACCESSORIAL
+  DUTY
+  INSURANCE
+  OTHER
+}
+
+/** Freight audit — booked vs invoiced vs carrier quote */
+model FreightCharge {
+  id                String                @id @default(cuid())
+  companyId         String
+  shipmentId        String?
+  carrierId         String?
+  carrierInvoiceRef String?
+  category          FreightChargeCategory   @default(FREIGHT)
+  description       String?
+  bookedAmount      Decimal?              @db.Decimal(18, 2)
+  invoicedAmount    Decimal?              @db.Decimal(18, 2)
+  auditedAmount     Decimal?              @db.Decimal(18, 2)
+  currency          String                @default("USD")
+  varianceNotes     String?
+  createdAt         DateTime              @default(now())
+
+  company           Company               @relation(fields: [companyId], references: [id])
+  shipment          Shipment?             @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  carrier           Carrier?              @relation(fields: [carrierId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([shipmentId])
+}
+
+enum InboundAsnStatus {
+  EXPECTED
+  PARTIALLY_RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+/** Advanced Shipping Notice — inbound from supplier (856-style payload optional in JSON) */
+model InboundAsn {
+  id               String            @id @default(cuid())
+  companyId        String
+  vendorId         String
+  purchaseOrderId  String?
+  asnNumber        String
+  status           InboundAsnStatus  @default(EXPECTED)
+  expectedDate     DateTime?
+  receivedJson     Json?             // line-level receipt confirmations
+  payload          Json?             // raw ASN / EDI mapped fields
+  notes            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  company          Company           @relation(fields: [companyId], references: [id])
+  vendor           Vendor            @relation(fields: [vendorId], references: [id])
+  purchaseOrder    PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, asnNumber])
+  @@index([companyId, vendorId])
+}
+
+enum RmaStatus {
+  REQUESTED
+  AUTHORIZED
+  IN_TRANSIT
+  RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+model RmaHeader {
+  id             String    @id @default(cuid())
+  companyId      String
+  rmaNumber      String
+  customerId     String
+  salesOrderId   String?
+  status         RmaStatus @default(REQUESTED)
+  reason         String?   @db.Text
+  authorizedAt   DateTime?
+  receivedAt     DateTime?
+  notes          String?   @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  company        Company   @relation(fields: [companyId], references: [id])
+  customer       Customer  @relation(fields: [customerId], references: [id])
+  salesOrder     SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  lines          RmaLine[]
+
+  @@unique([companyId, rmaNumber])
+  @@index([companyId, status])
+}
+
+model RmaLine {
+  id               String   @id @default(cuid())
+  rmaHeaderId      String
+  inventoryItemId  String
+  quantityAuth     Decimal  @db.Decimal(18, 4)
+  quantityReceived Decimal   @default(0) @db.Decimal(18, 4)
+  inventoryLotId   String?
+  reason           String?
+
+  rma              RmaHeader @relation(fields: [rmaHeaderId], references: [id], onDelete: Cascade)
+  item             InventoryItem @relation(fields: [inventoryItemId], references: [id])
+  lot              InventoryLot? @relation(fields: [inventoryLotId], references: [id], onDelete: SetNull)
+
+  @@index([rmaHeaderId])
+}
+
+enum BarcodeSymbology {
+  CODE128
+  QR
+  GS1_128
+  DATAMATRIX
+}
+
+/** Issued barcodes — scan accuracy, label audit trail */
+model LogisticsBarcode {
+  id              String            @id @default(cuid())
+  companyId       String
+  symbology       BarcodeSymbology  @default(CODE128)
+  payload         String
+  humanReadable   String?
+  linkType        String            // ITEM, LOT, SERIAL, SHIPMENT, PACKAGE, RMA, LOCATION
+  linkId          String?
+  issuedAt        DateTime          @default(now())
+  issuedBy        String?
+
+  company         Company           @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, linkType, linkId])
 }
 
 // ============================================

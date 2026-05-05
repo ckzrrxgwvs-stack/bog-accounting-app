@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Filter, Eye, Edit, CheckCircle } from 'lucide-react';
+import { Plus, Search, Filter, Eye, Edit, CheckCircle, BookMarked } from 'lucide-react';
 import {
   ModuleWorkspace,
   ledgerTableShell,
@@ -14,6 +14,7 @@ import {
   ledgerRow,
 } from '@/components/layout/ModuleWorkspace';
 import { api } from '@/services/api';
+import { formatMoney, useCompanyFx } from '@/hooks/useCompanyFx';
 
 interface Invoice {
   id: string;
@@ -22,17 +23,24 @@ interface Invoice {
   date: string;
   dueDate: string;
   amount: number;
+  currency?: string;
+  functionalAmount?: number | null;
+  functionalBalance?: number | null;
+  fxMissing?: boolean;
   status: string;
+  glJournalEntryId?: string | null;
 }
 
 const controlClass =
   'rounded-lg border border-bog-rule bg-white px-3 py-2 text-sm text-bog-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--bog-accent))]/25';
 
 export function AccountsPayable() {
+  const { functionalCurrency, useMultiCurrency } = useCompanyFx();
   const [selectedStatus, setSelectedStatus] = useState('');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [postingId, setPostingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,8 +75,7 @@ export function AccountsPayable() {
     CFDI_STAMPED: 'bg-emerald-50 text-emerald-900',
   };
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  const fmtFc = (amount: number) => formatMoney(amount, functionalCurrency);
 
   const getDaysUntilDue = (dueDate: string) => {
     const due = new Date(dueDate);
@@ -81,9 +88,34 @@ export function AccountsPayable() {
     return invoices.filter((i) => i.status === selectedStatus);
   }, [invoices, selectedStatus]);
 
+  const postInvoiceToGl = async (id: string) => {
+    setPostingId(id);
+    const res = await api.postInvoiceToLedger(id);
+    setPostingId(null);
+    if (!res.success) {
+      window.alert(res.error ?? 'Could not post to GL. For local dev, set SKIP_GL_AUTH=true on the server or log in for a JWT.');
+      return;
+    }
+    const data = res.data as { journalEntryId?: string; alreadyPosted?: boolean };
+    window.alert(
+      data?.alreadyPosted
+        ? 'Already posted to the general ledger.'
+        : `Posted. Journal link: ${data?.journalEntryId ?? 'ok'}`
+    );
+    const list = await api.getInvoices('AP');
+    if (list.success && list.data) {
+      const payload = list.data as { invoices?: Invoice[] };
+      setInvoices(payload.invoices ?? []);
+    }
+  };
+
   const metrics = useMemo(() => {
-    const outstanding = invoices.filter((i) => i.status !== 'PAID').reduce((s, i) => s + i.amount, 0);
-    const approved = invoices.filter((i) => i.status === 'PARTIAL' || i.status === 'SENT').reduce((s, i) => s + i.amount, 0);
+    const outstanding = invoices
+      .filter((i) => i.status !== 'PAID')
+      .reduce((s, i) => s + (i.functionalBalance ?? i.amount), 0);
+    const approved = invoices
+      .filter((i) => i.status === 'PARTIAL' || i.status === 'SENT')
+      .reduce((s, i) => s + (i.functionalAmount ?? i.amount), 0);
     return { outstanding, approved };
   }, [invoices]);
 
@@ -119,10 +151,10 @@ export function AccountsPayable() {
 
       <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Total outstanding', value: formatCurrency(metrics.outstanding), tone: 'default' as const },
-          { label: 'Due this week', value: formatCurrency(0), tone: 'default' as const },
-          { label: 'Overdue', value: formatCurrency(0), tone: 'danger' as const },
-          { label: 'Approved (ready to pay)', value: formatCurrency(metrics.approved), tone: 'accent' as const },
+          { label: useMultiCurrency ? `Total outstanding (${functionalCurrency})` : 'Total outstanding', value: fmtFc(metrics.outstanding), tone: 'default' as const },
+          { label: 'Due this week', value: fmtFc(0), tone: 'default' as const },
+          { label: 'Overdue', value: fmtFc(0), tone: 'danger' as const },
+          { label: useMultiCurrency ? `Approved (${functionalCurrency})` : 'Approved (ready to pay)', value: fmtFc(metrics.approved), tone: 'accent' as const },
         ].map((card) => (
           <div key={card.label} className="bog-statement-card p-4">
             <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">{card.label}</p>
@@ -174,19 +206,20 @@ export function AccountsPayable() {
                 <th className={ledgerThL}>Due date</th>
                 <th className={ledgerThR}>Amount</th>
                 <th className={ledgerThL}>Status</th>
+                <th className={ledgerThL}>GL</th>
                 <th className={ledgerThC}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr className={ledgerRow}>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-zinc-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-zinc-500">
                     Loading invoices…
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr className={ledgerRow}>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-zinc-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-zinc-500">
                     No AP invoices yet.
                   </td>
                 </tr>
@@ -194,6 +227,8 @@ export function AccountsPayable() {
                 filtered.map((invoice) => {
                   const daysUntilDue = getDaysUntilDue(invoice.dueDate);
                   const isOverdue = daysUntilDue < 0 && invoice.status !== 'PAID';
+                  const ccy = invoice.currency ?? functionalCurrency;
+                  const showFx = useMultiCurrency && ccy !== functionalCurrency;
 
                   return (
                     <tr key={invoice.id} className={ledgerRow}>
@@ -206,7 +241,15 @@ export function AccountsPayable() {
                           <span className="ml-2 text-xs text-amber-700">({daysUntilDue}d)</span>
                         )}
                       </td>
-                      <td className={`px-4 py-3 text-right ${ledgerTdNum}`}>{formatCurrency(invoice.amount)}</td>
+                      <td className={`px-4 py-3 text-right ${ledgerTdNum}`}>
+                        <div>{formatMoney(invoice.amount, ccy)}</div>
+                        {showFx && invoice.functionalAmount != null && (
+                          <div className="text-[11px] text-zinc-500">≈ {fmtFc(invoice.functionalAmount)}</div>
+                        )}
+                        {showFx && invoice.fxMissing && (
+                          <div className="text-[11px] text-amber-700">No rate</div>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${statusStyles[invoice.status] ?? 'bg-zinc-100 text-zinc-700'}`}
@@ -214,8 +257,26 @@ export function AccountsPayable() {
                           {invoice.status}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-xs text-zinc-600">
+                        {invoice.glJournalEntryId ? (
+                          <span className="text-emerald-700">Posted</span>
+                        ) : (
+                          <span className="text-zinc-400">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-1">
+                          {invoice.status !== 'DRAFT' && invoice.status !== 'CANCELLED' && (
+                            <button
+                              type="button"
+                              disabled={!!invoice.glJournalEntryId || postingId === invoice.id}
+                              onClick={() => postInvoiceToGl(invoice.id)}
+                              className="rounded-md p-1.5 text-[hsl(var(--bog-accent))] hover:bg-bog-sheet disabled:opacity-40"
+                              title="Post to general ledger"
+                            >
+                              <BookMarked size={16} />
+                            </button>
+                          )}
                           {(invoice.status === 'SENT' || invoice.status === 'DRAFT') && (
                             <button type="button" className="rounded-md p-1.5 text-emerald-700 hover:bg-emerald-50" title="Approve">
                               <CheckCircle size={16} />

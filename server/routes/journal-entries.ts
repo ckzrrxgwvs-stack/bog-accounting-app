@@ -4,6 +4,8 @@ import { prisma } from '../lib/prisma';
 import { useDatabase } from '../lib/dbMode';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
+import { assertPeriodOpen } from '../services/periodClose';
+import { createLedgerEntriesForJournal } from '../services/ledgerFromJournal';
 
 const router = Router();
 
@@ -39,6 +41,10 @@ let mockEntries: JournalEntryOut[] = [
     ],
   },
 ];
+
+function requireJournalApproval(): boolean {
+  return process.env.JOURNAL_REQUIRE_APPROVAL === '1' || process.env.JOURNAL_REQUIRE_APPROVAL === 'true';
+}
 
 function serializeJe(je: {
   id: string;
@@ -157,6 +163,7 @@ router.post('/', async (req, res) => {
     }
 
     const d = body.date ? new Date(body.date) : new Date();
+
     const period = d.getMonth() + 1;
     const year = d.getFullYear();
 
@@ -187,8 +194,76 @@ router.post('/', async (req, res) => {
 
     res.status(201).json({ journalEntry: serializeJe(entry) });
   } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Could not create journal entry';
     console.error(e);
-    res.status(400).json({ error: 'Could not create journal entry' });
+    res.status(400).json({ error: msg });
+  }
+});
+
+/** DRAFT → PENDING_APPROVAL */
+router.post('/:id/submit', async (req, res) => {
+  if (!useDatabase()) {
+    res.status(400).json({ error: 'Submit for approval requires database' });
+    return;
+  }
+  try {
+    const company = await getOrCreateDefaultCompany();
+    const row = await prisma.journalEntry.findFirst({
+      where: { id: req.params.id, companyId: company.id },
+    });
+    if (!row) {
+      res.status(404).json({ error: 'Journal entry not found' });
+      return;
+    }
+    if (row.status !== EntryStatus.DRAFT) {
+      res.status(400).json({ error: 'Only draft entries can be submitted' });
+      return;
+    }
+    const updated = await prisma.journalEntry.update({
+      where: { id: row.id },
+      data: { status: EntryStatus.PENDING_APPROVAL },
+      include: { lines: { include: { account: true } } },
+    });
+    res.json({ journalEntry: serializeJe(updated) });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not submit' });
+  }
+});
+
+/** PENDING_APPROVAL → APPROVED */
+router.post('/:id/approve', async (req, res) => {
+  if (!useDatabase()) {
+    res.status(400).json({ error: 'Approval requires database' });
+    return;
+  }
+  try {
+    const company = await getOrCreateDefaultCompany();
+    const row = await prisma.journalEntry.findFirst({
+      where: { id: req.params.id, companyId: company.id },
+    });
+    if (!row) {
+      res.status(404).json({ error: 'Journal entry not found' });
+      return;
+    }
+    if (row.status !== EntryStatus.PENDING_APPROVAL) {
+      res.status(400).json({ error: 'Only pending entries can be approved' });
+      return;
+    }
+    const approver = typeof req.body?.approvedBy === 'string' ? req.body.approvedBy : 'app';
+    const updated = await prisma.journalEntry.update({
+      where: { id: row.id },
+      data: {
+        status: EntryStatus.APPROVED,
+        approvedBy: approver,
+        approvedAt: new Date(),
+      },
+      include: { lines: { include: { account: true } } },
+    });
+    res.json({ journalEntry: serializeJe(updated) });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not approve' });
   }
 });
 
@@ -206,14 +281,71 @@ router.post('/:id/post', async (req, res) => {
   }
 
   try {
-    const updated = await prisma.journalEntry.update({
-      where: { id: req.params.id },
-      data: { status: 'POSTED' },
-      include: { lines: { include: { account: true } } },
+    const company = await getOrCreateDefaultCompany();
+    const require = requireJournalApproval();
+
+    const result = await prisma.$transaction(async (tx) => {
+      const row = await tx.journalEntry.findFirst({
+        where: { id: req.params.id, companyId: company.id },
+        include: { lines: { include: { account: true } } },
+      });
+      if (!row) {
+        return { error: 404 as const, message: 'Journal entry not found' };
+      }
+      if (row.status === EntryStatus.POSTED) {
+        return { error: 400 as const, message: 'Entry already posted' };
+      }
+      if (require) {
+        if (row.status !== EntryStatus.APPROVED) {
+          return { error: 400 as const, message: 'Entry must be approved before posting' };
+        }
+      } else {
+        if (row.status !== EntryStatus.DRAFT && row.status !== EntryStatus.APPROVED) {
+          return { error: 400 as const, message: 'Only draft or approved entries can be posted' };
+        }
+      }
+
+      await assertPeriodOpen(company.id, row.date);
+
+      const updated = await tx.journalEntry.update({
+        where: { id: row.id },
+        data: { status: EntryStatus.POSTED },
+        include: { lines: { include: { account: true } } },
+      });
+
+      await createLedgerEntriesForJournal(tx, {
+        companyId: company.id,
+        journalEntryId: updated.id,
+        journalDate: updated.date,
+        description: updated.description,
+        lines: updated.lines.map((l) => ({
+          id: l.id,
+          accountId: l.accountId,
+          debit: l.debit,
+          credit: l.credit,
+        })),
+      });
+
+      return { entry: updated };
     });
-    res.json({ journalEntry: serializeJe(updated) });
-  } catch {
-    res.status(404).json({ error: 'Journal entry not found' });
+
+    if ('error' in result && result.error === 404) {
+      res.status(404).json({ error: result.message });
+      return;
+    }
+    if ('error' in result && result.error === 400) {
+      res.status(400).json({ error: result.message });
+      return;
+    }
+    if ('entry' in result) {
+      res.json({ journalEntry: serializeJe(result.entry) });
+      return;
+    }
+    res.status(500).json({ error: 'Unexpected post result' });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Could not post';
+    console.error(e);
+    res.status(400).json({ error: msg });
   }
 });
 
@@ -229,8 +361,9 @@ router.get('/:id', async (req, res) => {
   }
 
   try {
+    const company = await getOrCreateDefaultCompany();
     const row = await prisma.journalEntry.findFirst({
-      where: { id: req.params.id },
+      where: { id: req.params.id, companyId: company.id },
       include: { lines: { include: { account: true } } },
     });
     if (!row) {

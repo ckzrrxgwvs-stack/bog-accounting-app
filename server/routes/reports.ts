@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { AccountType, EntryStatus } from '@prisma/client';
+import { AccountType, InvoiceStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { useDatabase } from '../lib/dbMode';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
+import { aggregatePostedJournal, aggregatePostedJournalThrough } from '../services/journalAggregates';
 
 const router = Router();
 
@@ -44,60 +45,6 @@ function parsePeriod(req: { query: Record<string, unknown> }) {
   const month = Number.isFinite(m) ? Math.min(12, Math.max(1, m)) : 4;
   const year = Number.isFinite(y) ? y : 2026;
   return { month, year, ...monthBounds(month, year) };
-}
-
-type Agg = Map<string, { debit: number; credit: number }>;
-
-function addAgg(map: Agg, accountId: string, debit: number, credit: number) {
-  const cur = map.get(accountId) ?? { debit: 0, credit: 0 };
-  cur.debit += debit;
-  cur.credit += credit;
-  map.set(accountId, cur);
-}
-
-async function aggregatePostedJournal(
-  companyId: string,
-  start: Date,
-  end: Date
-): Promise<Agg> {
-  const entries = await prisma.journalEntry.findMany({
-    where: {
-      companyId,
-      status: EntryStatus.POSTED,
-      date: { gte: start, lte: end },
-    },
-    include: {
-      lines: true,
-    },
-  });
-  const map: Agg = new Map();
-  for (const je of entries) {
-    for (const line of je.lines) {
-      addAgg(map, line.accountId, dec(line.debit as never), dec(line.credit as never));
-    }
-  }
-  return map;
-}
-
-async function aggregatePostedJournalThrough(
-  companyId: string,
-  end: Date
-): Promise<Agg> {
-  const entries = await prisma.journalEntry.findMany({
-    where: {
-      companyId,
-      status: EntryStatus.POSTED,
-      date: { lte: end },
-    },
-    include: { lines: true },
-  });
-  const map: Agg = new Map();
-  for (const je of entries) {
-    for (const line of je.lines) {
-      addAgg(map, line.accountId, dec(line.debit as never), dec(line.credit as never));
-    }
-  }
-  return map;
 }
 
 router.get('/income-statement', async (req, res) => {
@@ -376,6 +323,22 @@ router.get('/trial-balance', async (req, res) => {
     const debit = Math.round(td * 100) / 100;
     const credit = Math.round(tc * 100) / 100;
 
+    if (String(req.query.format).toLowerCase() === 'csv') {
+      const esc = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+      const lines = [
+        ['Code', 'Name', 'Debit', 'Credit'].join(','),
+        ...rows.map((r) => [esc(r.code), esc(r.name), r.debit, r.credit].join(',')),
+        ['TOTAL', '', debit, credit].join(','),
+      ];
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="trial-balance-${year}-${String(month).padStart(2, '0')}.csv"`
+      );
+      res.send(lines.join('\n'));
+      return;
+    }
+
     res.json({
       title: 'Trial Balance',
       date: end.toLocaleDateString('en-US', { dateStyle: 'long' }),
@@ -390,26 +353,86 @@ router.get('/trial-balance', async (req, res) => {
   }
 });
 
+function bucketsFromRows(rows: { balance: unknown; dueDate: Date }[]) {
+  const buckets = [
+    { label: 'Current', amount: 0 },
+    { label: '1-30 days', amount: 0 },
+    { label: '31-60 days', amount: 0 },
+    { label: '60+ days', amount: 0 },
+  ];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dayMs = 86400000;
+  for (const r of rows) {
+    const bal = dec(r.balance as never);
+    if (bal <= 0) continue;
+    const due = new Date(r.dueDate);
+    due.setHours(0, 0, 0, 0);
+    const daysPast = Math.floor((today.getTime() - due.getTime()) / dayMs);
+    if (daysPast <= 0) buckets[0].amount += bal;
+    else if (daysPast <= 30) buckets[1].amount += bal;
+    else if (daysPast <= 60) buckets[2].amount += bal;
+    else buckets[3].amount += bal;
+  }
+  return buckets.map((b) => ({ bucket: b.label, amount: Math.round(b.amount * 100) / 100 }));
+}
+
 router.get('/ar-aging', async (_req, res) => {
-  res.json({
-    buckets: [
-      { bucket: 'Current', amount: 0 },
-      { bucket: '1-30 days', amount: 0 },
-      { bucket: '31-60 days', amount: 0 },
-      { bucket: '60+ days', amount: 0 },
-    ],
-  });
+  if (!useDatabase()) {
+    res.json({
+      buckets: [
+        { bucket: 'Current', amount: 0 },
+        { bucket: '1-30 days', amount: 0 },
+        { bucket: '31-60 days', amount: 0 },
+        { bucket: '60+ days', amount: 0 },
+      ],
+    });
+    return;
+  }
+  try {
+    const company = await getOrCreateDefaultCompany();
+    const rows = await prisma.invoice.findMany({
+      where: {
+        companyId: company.id,
+        type: { in: ['AR_INVOICE', 'AR_CREDIT_MEMO'] },
+        status: { notIn: [InvoiceStatus.PAID, InvoiceStatus.CANCELLED] },
+      },
+      select: { balance: true, dueDate: true },
+    });
+    res.json({ buckets: bucketsFromRows(rows) });
+  } catch (e) {
+    console.error(e);
+    res.status(503).json({ error: 'Database unavailable' });
+  }
 });
 
 router.get('/ap-aging', async (_req, res) => {
-  res.json({
-    buckets: [
-      { bucket: 'Current', amount: 0 },
-      { bucket: '1-30 days', amount: 0 },
-      { bucket: '31-60 days', amount: 0 },
-      { bucket: '60+ days', amount: 0 },
-    ],
-  });
+  if (!useDatabase()) {
+    res.json({
+      buckets: [
+        { bucket: 'Current', amount: 0 },
+        { bucket: '1-30 days', amount: 0 },
+        { bucket: '31-60 days', amount: 0 },
+        { bucket: '60+ days', amount: 0 },
+      ],
+    });
+    return;
+  }
+  try {
+    const company = await getOrCreateDefaultCompany();
+    const rows = await prisma.invoice.findMany({
+      where: {
+        companyId: company.id,
+        type: { in: ['AP_INVOICE', 'AP_CREDIT_MEMO'] },
+        status: { notIn: [InvoiceStatus.PAID, InvoiceStatus.CANCELLED] },
+      },
+      select: { balance: true, dueDate: true },
+    });
+    res.json({ buckets: bucketsFromRows(rows) });
+  } catch (e) {
+    console.error(e);
+    res.status(503).json({ error: 'Database unavailable' });
+  }
 });
 
 export { router as reportsRouter };

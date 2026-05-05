@@ -6,7 +6,14 @@ import { dec } from '../lib/serialize';
 
 const router = Router();
 
-const mockVendors = [
+let mockVendors: {
+  id: string;
+  code: string;
+  name: string;
+  email: string;
+  phone: string;
+  balance: number;
+}[] = [
   { id: 'v1', code: 'V-001', name: 'Office Depot', email: 'ap@officedepot.com', phone: '(555) 100-2000', balance: 1250 },
   { id: 'v2', code: 'V-002', name: 'Tech Solutions', email: 'invoices@techsol.com', phone: '(555) 200-3000', balance: 3500 },
 ];
@@ -29,6 +36,7 @@ router.get('/', async (_req, res) => {
       email: v.email ?? '',
       phone: v.phone ?? '',
       balance: dec(v.balance),
+      tax1099Category: v.tax1099Category ?? '',
     }));
     res.json({ vendors });
   } catch (e) {
@@ -84,6 +92,7 @@ router.post('/', async (req, res) => {
       phone,
       balance: 0,
     };
+    mockVendors = [...mockVendors, vendor];
     res.status(201).json({ vendor });
     return;
   }
@@ -113,6 +122,102 @@ router.post('/', async (req, res) => {
     console.error(e);
     const dup = e && typeof e === 'object' && 'code' in e && e.code === 'P2002';
     res.status(400).json({ error: dup ? 'Vendor code already exists' : 'Could not create vendor' });
+  }
+});
+
+router.patch('/:id', async (req, res) => {
+  const body = req.body as Record<string, unknown>;
+  const allowed = [
+    'name',
+    'email',
+    'phone',
+    'code',
+    'isActive',
+    'address',
+    'city',
+    'state',
+    'zipCode',
+    'country',
+    'paymentTerms',
+    'tax1099Category',
+  ] as const;
+  const data: Record<string, unknown> = {};
+  for (const key of allowed) {
+    if (body[key] !== undefined) data[key] = body[key];
+  }
+  if (Object.keys(data).length === 0) {
+    res.status(400).json({ error: 'No valid fields to update' });
+    return;
+  }
+
+  if (!useDatabase()) {
+    const idx = mockVendors.findIndex((v) => v.id === req.params.id);
+    if (idx === -1) {
+      res.status(404).json({ error: 'Vendor not found' });
+      return;
+    }
+    const prev = mockVendors[idx];
+    const next = {
+      ...prev,
+      ...(typeof data.name === 'string' ? { name: data.name } : {}),
+      ...(typeof data.email === 'string' ? { email: data.email } : {}),
+      ...(typeof data.phone === 'string' ? { phone: data.phone } : {}),
+      ...(typeof data.code === 'string' ? { code: data.code } : {}),
+    };
+    mockVendors = mockVendors.map((v, i) => (i === idx ? next : v));
+    res.json({ vendor: next });
+    return;
+  }
+
+  try {
+    const company = await getOrCreateDefaultCompany();
+    const existing = await prisma.vendor.findFirst({
+      where: { id: req.params.id, companyId: company.id },
+    });
+    if (!existing) {
+      res.status(404).json({ error: 'Vendor not found' });
+      return;
+    }
+    const vendor = await prisma.vendor.update({
+      where: { id: req.params.id },
+      data: {
+        ...(typeof data.name === 'string' ? { name: data.name } : {}),
+        ...(typeof data.email === 'string' ? { email: data.email || null } : {}),
+        ...(typeof data.phone === 'string' ? { phone: data.phone || null } : {}),
+        ...(typeof data.code === 'string' ? { code: data.code } : {}),
+        ...(typeof data.isActive === 'boolean' ? { isActive: data.isActive } : {}),
+        ...(typeof data.address === 'string' ? { address: data.address || null } : {}),
+        ...(typeof data.city === 'string' ? { city: data.city || null } : {}),
+        ...(typeof data.state === 'string' ? { state: data.state || null } : {}),
+        ...(typeof data.zipCode === 'string' ? { zipCode: data.zipCode || null } : {}),
+        ...(typeof data.country === 'string' ? { country: data.country } : {}),
+        ...(data.paymentTerms !== undefined && Number.isFinite(Number(data.paymentTerms))
+          ? { paymentTerms: Math.floor(Number(data.paymentTerms)) }
+          : {}),
+        ...(typeof data.tax1099Category === 'string' || data.tax1099Category === null
+          ? {
+              tax1099Category:
+                data.tax1099Category === null || data.tax1099Category === ''
+                  ? null
+                  : String(data.tax1099Category),
+            }
+          : {}),
+      },
+    });
+    res.json({
+      vendor: {
+        id: vendor.id,
+        code: vendor.code,
+        name: vendor.name,
+        email: vendor.email ?? '',
+        phone: vendor.phone ?? '',
+        balance: dec(vendor.balance),
+      },
+    });
+  } catch (e: unknown) {
+    console.error(e);
+    const dup = e && typeof e === 'object' && 'code' in e && e.code === 'P2002';
+    res.status(400).json({ error: dup ? 'Vendor code already exists' : 'Could not update vendor' });
   }
 });
 

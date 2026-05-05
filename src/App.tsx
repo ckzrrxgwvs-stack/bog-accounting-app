@@ -5,8 +5,13 @@ import { MainLayout } from './components/layout/MainLayout';
 import { Dashboard } from './pages/Dashboard';
 import { Ledger } from './pages/Ledger';
 import { ChartOfAccounts } from './pages/ChartOfAccounts';
+import { OpeningBalances } from './pages/OpeningBalances';
+import { PeriodClose } from './pages/PeriodClose';
+import { Customers } from './pages/Customers';
+import { Vendors } from './pages/Vendors';
 import { AccountsPayable } from './pages/AccountsPayable';
 import { AccountsReceivable } from './pages/AccountsReceivable';
+import { Payments } from './pages/Payments';
 import { Reports } from './pages/Reports';
 import { AICPA } from './pages/AICPA';
 import { Inventory } from './pages/Inventory';
@@ -14,6 +19,14 @@ import { Payroll } from './pages/Payroll';
 import { CFDI } from './pages/CFDI';
 import { Users } from './pages/Users';
 import { Settings } from './pages/Settings';
+import { ManualOperations } from './pages/ManualOperations';
+import { ErpHub } from './pages/ErpHub';
+import { PurchaseOrders } from './pages/PurchaseOrders';
+import { SalesOrders } from './pages/SalesOrders';
+import { Manufacturing } from './pages/Manufacturing';
+import { ErpLogistics } from './pages/ErpLogistics';
+import { ErpAssistant } from './pages/ErpAssistant';
+import { DataStudio } from './pages/DataStudio';
 import { Login } from './pages/Login';
 import { useAuthStore } from './stores/authStore';
 
@@ -51,19 +64,32 @@ function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="ledger/coa" element={<ChartOfAccounts />} />
+          <Route path="ledger/opening-balances" element={<OpeningBalances />} />
+          <Route path="ledger/period-close" element={<PeriodClose />} />
+          <Route path="master/customers" element={<Customers />} />
+          <Route path="master/vendors" element={<Vendors />} />
           <Route path="ledger" element={<Ledger />} />
           <Route path="ledger/new" element={<Ledger />} />
           <Route path="ap" element={<AccountsPayable />} />
           <Route path="ap/new" element={<AccountsPayable />} />
           <Route path="ar" element={<AccountsReceivable />} />
           <Route path="ar/new" element={<AccountsReceivable />} />
+          <Route path="payments" element={<Payments />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="data-studio" element={<DataStudio />} />
           <Route path="ai-cpa" element={<AICPA />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="payroll" element={<Payroll />} />
           <Route path="cfdi" element={<CFDI />} />
           <Route path="users" element={<Users />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="settings/manual-operations" element={<ManualOperations />} />
+          <Route path="erp" element={<ErpHub />} />
+          <Route path="erp/assistant" element={<ErpAssistant />} />
+          <Route path="erp/purchase-orders" element={<PurchaseOrders />} />
+          <Route path="erp/sales-orders" element={<SalesOrders />} />
+          <Route path="erp/manufacturing" element={<Manufacturing />} />
+          <Route path="erp/logistics" element={<ErpLogistics />} />
         </Route>
 
         {/* Catch all - redirect to dashboard */}
