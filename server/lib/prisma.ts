@@ -12,7 +12,14 @@ function createPrisma(): PrismaClient {
   if (!url) {
     throw new Error('DATABASE_URL is required when using the database');
   }
-  const pool = new pg.Pool({ connectionString: url });
+  const useSsl =
+    url.includes('supabase.co') ||
+    url.includes('sslmode=require') ||
+    process.env.DATABASE_SSL === 'true';
+  const pool = new pg.Pool({
+    connectionString: url,
+    ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {}),
+  });
   globalForPrisma.pgPool = pool;
   const adapter = new PrismaPg(pool);
   return new PrismaClient({
