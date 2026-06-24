@@ -4,6 +4,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { LogoWithStatus } from './Logo';
+import { useServerMode } from '@/hooks/useServerMode';
 import {
   LayoutDashboard,
   BookOpen,
@@ -25,6 +26,8 @@ import {
   Bell,
   HelpCircle,
   PenLine,
+  Lightbulb,
+  Bot,
 } from 'lucide-react';
 import { useCompanyPolicy } from '@/hooks/useCompanyPolicy';
 
@@ -79,6 +82,9 @@ interface SidebarProps {
 export function Sidebar({ className = '' }: SidebarProps) {
   const { user, hasModuleAccess, logout } = useAuthStore();
   const { manualOperationsMode, loading: policyLoading } = useCompanyPolicy();
+  const serverMode = useServerMode();
+  const logoStatus =
+    serverMode === 'database' ? 'active' : serverMode === 'loading' ? 'syncing' : 'demo';
 
   const isExecutive = Boolean(
     user && (user.role === 'PRESIDENT' || user.role === 'CFO' || user.role === 'CONTROLLER')
@@ -169,6 +175,18 @@ export function Sidebar({ className = '' }: SidebarProps) {
       condition: hasModuleAccess('users'),
     },
     {
+      icon: <Bot size={20} />,
+      label: 'Agent operations',
+      href: '/agent-operations',
+      condition: hasModuleAccess('agent_org'),
+    },
+    {
+      icon: <Lightbulb size={20} />,
+      label: 'Product intelligence',
+      href: '/product-intelligence',
+      condition: hasModuleAccess('product_intel'),
+    },
+    {
       icon: <PenLine size={20} />,
       label: 'Manual operations',
       href: '/settings/manual-operations',
@@ -189,7 +207,7 @@ export function Sidebar({ className = '' }: SidebarProps) {
     <aside className={`w-64 bg-white border-r border-gray-200 flex flex-col h-full ${className}`}>
       {/* Logo */}
       <div className="p-6 border-b border-gray-100">
-        <LogoWithStatus status="demo" />
+        <LogoWithStatus status={logoStatus} />
       </div>
 
       {/* Navigation */}

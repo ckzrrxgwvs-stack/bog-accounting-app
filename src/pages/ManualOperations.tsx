@@ -15,6 +15,7 @@ export function ManualOperations() {
 
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [manualMode, setManualMode] = useState(false);
+  const [aiRetainMemory, setAiRetainMemory] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -30,6 +31,7 @@ export function ManualOperations() {
       const co = payload.company;
       if (co?.id != null) setCompanyId(String(co.id));
       setManualMode(Boolean(co?.manualOperationsMode));
+      setAiRetainMemory(Boolean(co?.aiRetainSessionMemory));
       setLoaded(true);
     })();
     return () => {
@@ -40,7 +42,10 @@ export function ManualOperations() {
   const save = async () => {
     if (!companyId || !canManage) return;
     setSaving(true);
-    const res = await api.patchCompanyExecutiveSettings(companyId, { manualOperationsMode: manualMode });
+    const res = await api.patchCompanyExecutiveSettings(companyId, {
+      manualOperationsMode: manualMode,
+      aiRetainSessionMemory: aiRetainMemory,
+    });
     setSaving(false);
     if (!res.success) {
       window.alert(
@@ -49,11 +54,16 @@ export function ManualOperations() {
       );
       return;
     }
-    const d = res.data as { company?: { manualOperationsMode?: boolean } };
+    const d = res.data as {
+      company?: { manualOperationsMode?: boolean; aiRetainSessionMemory?: boolean };
+    };
     if (typeof d.company?.manualOperationsMode === 'boolean') {
       setManualMode(d.company.manualOperationsMode);
     }
-    window.alert('Manual operations setting saved.');
+    if (typeof d.company?.aiRetainSessionMemory === 'boolean') {
+      setAiRetainMemory(d.company.aiRetainSessionMemory);
+    }
+    window.alert('Company policy saved.');
   };
 
   return (
@@ -127,6 +137,32 @@ export function ManualOperations() {
                 manual operations mode.
               </p>
             )}
+          </div>
+
+          <div className="bog-statement-card border border-bog-rule p-6">
+            <h3 className="font-semibold text-bog-ink">AI organizational memory (opt-in)</h3>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+              When enabled, short excerpts from <strong>AI CPA</strong> and <strong>ERP Assistant</strong> chats can be
+              stored <strong>for your organization only</strong> and added to future assistant prompts so answers stay
+              consistent with prior explanations. This does <strong>not</strong> retrain OpenAI&apos;s global models — it is{' '}
+              <strong>tenant-scoped retrieval memory</strong> capped on our servers. Disable anytime with no affect on core accounting data.
+            </p>
+            <div className="mt-6 flex items-start gap-3 border-t border-bog-rule pt-6">
+              <input
+                id="ai-memory"
+                type="checkbox"
+                checked={aiRetainMemory}
+                disabled={!canManage || manualMode}
+                onChange={(e) => setAiRetainMemory(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-zinc-300 text-bog-ink focus:ring-[hsl(var(--bog-accent))]"
+              />
+              <label htmlFor="ai-memory" className="text-sm text-bog-ink">
+                <span className="font-medium">Retain AI session excerpts for this company</span>
+                <span className="mt-1 block text-zinc-600">
+                  Off by default. When manual operations mode is on, AI assistants are disabled — memory applies only when assistants run again after AI is allowed.
+                </span>
+              </label>
+            </div>
           </div>
 
           <p className="text-xs text-zinc-500">

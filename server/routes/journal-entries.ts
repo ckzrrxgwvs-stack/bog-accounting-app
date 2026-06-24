@@ -3,6 +3,8 @@ import { EntryStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { useDatabase } from '../lib/dbMode';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
+import { getOrCreateInvestmentSmaCompany } from '../services/investmentSmaBootstrap';
+import { getOrCreateInvestmentSmaCompany } from '../services/investmentSmaBootstrap';
 import { dec } from '../lib/serialize';
 import { assertPeriodOpen } from '../services/periodClose';
 import { createLedgerEntriesForJournal } from '../services/ledgerFromJournal';
@@ -121,6 +123,9 @@ router.post('/', async (req, res) => {
   const body = req.body as {
     date?: string;
     description?: string;
+    reference?: string;
+    sourceType?: string;
+    sourceId?: string;
     lines?: { accountId: string; debit?: number; credit?: number }[];
   };
 
@@ -149,7 +154,10 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company =
+      body.sourceType === 'investment_fund_crew'
+        ? await getOrCreateInvestmentSmaCompany()
+        : await getOrCreateDefaultCompany();
     const linesIn = Array.isArray(body.lines) ? body.lines : [];
     let debitSum = 0;
     let creditSum = 0;
@@ -173,6 +181,9 @@ router.post('/', async (req, res) => {
           companyId: company.id,
           date: d,
           description: body.description ?? '',
+          reference: body.reference ?? undefined,
+          sourceType: body.sourceType ?? undefined,
+          sourceId: body.sourceId ?? undefined,
           status: 'DRAFT',
           period,
           year,

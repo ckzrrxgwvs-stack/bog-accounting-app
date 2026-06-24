@@ -5,6 +5,20 @@ import { useDatabase } from '../lib/dbMode';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
 import { receivePurchaseOrderReceipt } from '../services/erpAccountingIntegration';
+import { allocateNextDocumentSeq, formatPurchaseOrderNumber } from '../services/documentCounters';
+import {
+  computePurchaseOrderFingerprint,
+  hashIdempotencyKey,
+  orderDedupWindowMinutes,
+} from '../services/creationSafety';
+
+function readIdempotencyKey(req: { headers: Record<string, unknown>; body?: unknown }): string | undefined {
+  const h = req.headers['idempotency-key'];
+  if (typeof h === 'string' && h.trim()) return h.trim();
+  const b = req.body as { idempotencyKey?: string } | undefined;
+  if (typeof b?.idempotencyKey === 'string' && b.idempotencyKey.trim()) return b.idempotencyKey.trim();
+  return undefined;
+}
 
 const router = Router();
 
@@ -117,6 +131,7 @@ router.post('/', async (req, res) => {
     expectedDate?: string;
     currency?: string;
     notes?: string;
+    supplierReference?: string;
     lines?: { description?: string; quantity?: number; unitCost?: number; inventoryItemId?: string | null }[];
   };
 
@@ -160,6 +175,8 @@ router.post('/', async (req, res) => {
 
   const taxAmount = 0;
   const total = subtotal;
+  const srefRaw = typeof body.supplierReference === 'string' ? body.supplierReference.trim() : '';
+  const supplierReference = srefRaw.length > 0 ? srefRaw : null;
 
   if (!useDatabase()) {
     const id = `po-mock-${Date.now()}`;
@@ -181,6 +198,8 @@ router.post('/', async (req, res) => {
     return;
   }
 
+  const idemRaw = readIdempotencyKey(req);
+
   try {
     const company = await getOrCreateDefaultCompany();
     const vendor = await prisma.vendor.findFirst({
@@ -191,31 +210,42 @@ router.post('/', async (req, res) => {
       return;
     }
 
-    const poNumber = `PO-${Date.now()}`;
-    const orderDate = new Date();
-    const expectedDate = body.expectedDate ? new Date(body.expectedDate) : null;
+    const fingerprint = computePurchaseOrderFingerprint(
+      vendor.id,
+      currency,
+      builtLines.map((l) => ({
+        inventoryItemId: l.inventoryItemId,
+        description: l.description,
+        quantity: l.quantity.toFixed(4),
+        unitCost: l.unitCost.toFixed(4),
+      }))
+    );
 
-    const created = await prisma.purchaseOrder.create({
-      data: {
-        companyId: company.id,
-        poNumber,
-        vendorId: vendor.id,
-        orderDate,
-        expectedDate,
-        status: 'DRAFT',
-        currency,
-        subtotal: new Prisma.Decimal(String(subtotal)),
-        taxAmount: new Prisma.Decimal(String(taxAmount)),
-        total: new Prisma.Decimal(String(total)),
-        notes: body.notes ?? null,
-        lines: { create: builtLines },
-      },
-      include: { vendor: true, lines: true },
-    });
+    const windowMin = orderDedupWindowMinutes();
+    const windowStart = new Date(Date.now() - windowMin * 60 * 1000);
 
-    res.status(201).json({
+    const payloadForJson = (created: {
+      id: string;
+      poNumber: string;
+      vendorId: string;
+      vendor: { name: string };
+      orderDate: Date;
+      expectedDate: Date | null;
+      status: PurchaseOrderStatus;
+      currency: string;
+      total: unknown;
+      notes: string | null;
+      lines: {
+        id: string;
+        lineNumber: number;
+        description: string;
+        quantity: unknown;
+        unitCost: unknown;
+        lineTotal: unknown;
+      }[];
+    }) => ({
       purchaseOrder: {
-        ...mapPo(created),
+        ...mapPo({ ...created, vendor: created.vendor }),
         lines: created.lines.map((l) => ({
           id: l.id,
           lineNumber: l.lineNumber,
@@ -226,6 +256,162 @@ router.post('/', async (req, res) => {
         })),
       },
     });
+
+    const runTxn = async () =>
+      prisma.$transaction(
+        async (tx) => {
+          if (idemRaw) {
+            const keyHash = hashIdempotencyKey(company.id, 'PURCHASE_ORDER_IDEMPOTENCY', idemRaw);
+            const dedup = await tx.creationDedupKey.findUnique({
+              where: {
+                companyId_scope_keyHash: {
+                  companyId: company.id,
+                  scope: 'PURCHASE_ORDER_IDEMPOTENCY',
+                  keyHash,
+                },
+              },
+            });
+            if (dedup?.resourceKind === 'PurchaseOrder') {
+              const replay = await tx.purchaseOrder.findFirst({
+                where: { id: dedup.resourceId, companyId: company.id },
+                include: { vendor: true, lines: { orderBy: { lineNumber: 'asc' } } },
+              });
+              if (replay) return { kind: 'replay' as const, row: replay };
+            }
+          }
+
+          const dupFinger = await tx.purchaseOrder.findFirst({
+            where: {
+              companyId: company.id,
+              vendorId: vendor.id,
+              duplicateGuardHash: fingerprint,
+              status: { in: ['DRAFT', 'APPROVED'] },
+              createdAt: { gte: windowStart },
+            },
+          });
+          if (dupFinger) {
+            return { kind: 'dupFinger' as const, poNumber: dupFinger.poNumber, id: dupFinger.id };
+          }
+
+          if (supplierReference) {
+            const dupRef = await tx.purchaseOrder.findFirst({
+              where: {
+                companyId: company.id,
+                vendorId: vendor.id,
+                supplierReference,
+                status: { notIn: ['CANCELLED'] },
+              },
+            });
+            if (dupRef) {
+              return { kind: 'dupRef' as const, poNumber: dupRef.poNumber, id: dupRef.id };
+            }
+          }
+
+          const seq = await allocateNextDocumentSeq(company.id, 'PURCHASE_ORDER', tx);
+          const poNumber = formatPurchaseOrderNumber(seq);
+          const orderDate = new Date();
+          const expectedDate = body.expectedDate ? new Date(body.expectedDate) : null;
+
+          const created = await tx.purchaseOrder.create({
+            data: {
+              companyId: company.id,
+              poNumber,
+              vendorId: vendor.id,
+              orderDate,
+              expectedDate,
+              status: 'DRAFT',
+              currency,
+              subtotal: new Prisma.Decimal(String(subtotal)),
+              taxAmount: new Prisma.Decimal(String(taxAmount)),
+              total: new Prisma.Decimal(String(total)),
+              notes: body.notes ?? null,
+              duplicateGuardHash: fingerprint,
+              supplierReference,
+              lines: { create: builtLines },
+            },
+            include: { vendor: true, lines: { orderBy: { lineNumber: 'asc' } } },
+          });
+
+          if (idemRaw) {
+            const keyHash = hashIdempotencyKey(company.id, 'PURCHASE_ORDER_IDEMPOTENCY', idemRaw);
+            try {
+              await tx.creationDedupKey.create({
+                data: {
+                  companyId: company.id,
+                  scope: 'PURCHASE_ORDER_IDEMPOTENCY',
+                  keyHash,
+                  resourceKind: 'PurchaseOrder',
+                  resourceId: created.id,
+                },
+              });
+            } catch (e: unknown) {
+              const code = e && typeof e === 'object' && 'code' in e ? String((e as { code?: string }).code) : '';
+              if (code === 'P2002') {
+                const dedup = await tx.creationDedupKey.findUnique({
+                  where: {
+                    companyId_scope_keyHash: {
+                      companyId: company.id,
+                      scope: 'PURCHASE_ORDER_IDEMPOTENCY',
+                      keyHash,
+                    },
+                  },
+                });
+                if (dedup?.resourceKind === 'PurchaseOrder') {
+                  const replay = await tx.purchaseOrder.findFirst({
+                    where: { id: dedup.resourceId, companyId: company.id },
+                    include: { vendor: true, lines: { orderBy: { lineNumber: 'asc' } } },
+                  });
+                  if (replay) return { kind: 'replay' as const, row: replay };
+                }
+              }
+              throw e;
+            }
+          }
+
+          return { kind: 'created' as const, row: created };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      );
+
+    type TxnOut = Awaited<ReturnType<typeof runTxn>>;
+    const deliver = (result: TxnOut) => {
+      if (result.kind === 'dupFinger') {
+        res.status(409).json({
+          error: `Possible duplicate purchase order: same vendor and lines as ${result.poNumber} within the last ${windowMin} minutes.`,
+          code: 'DUPLICATE_PO_FINGERPRINT',
+          duplicateOfPoNumber: result.poNumber,
+          duplicateOfId: result.id,
+        });
+        return;
+      }
+      if (result.kind === 'dupRef') {
+        res.status(409).json({
+          error: `Supplier reference "${supplierReference}" is already used on PO ${result.poNumber}.`,
+          code: 'DUPLICATE_SUPPLIER_REF',
+          duplicateOfPoNumber: result.poNumber,
+          duplicateOfId: result.id,
+        });
+        return;
+      }
+      if (result.kind === 'replay') {
+        res.status(200).json({
+          ...payloadForJson(result.row),
+          idempotentReplay: true,
+        });
+        return;
+      }
+      res.status(201).json(payloadForJson(result.row));
+    };
+
+    try {
+      deliver(await runTxn());
+    } catch (inner: unknown) {
+      if (inner instanceof Prisma.PrismaClientKnownRequestError && inner.code === 'P2034') {
+        deliver(await runTxn());
+      } else {
+        throw inner;
+      }
+    }
   } catch (e) {
     console.error(e);
     res.status(400).json({ error: 'Could not create purchase order' });

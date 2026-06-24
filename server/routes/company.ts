@@ -62,6 +62,8 @@ router.patch('/:id', async (req, res) => {
       'useUsPayrollTaxReporting',
       'useUsInformationReturns',
       'usTaxIntegrationNotes',
+      'useShopifyConnector',
+      'shopifyStoreDomain',
     ] as const;
 
     const data: Record<string, unknown> = {};
@@ -93,9 +95,14 @@ router.patch(
       return;
     }
 
-    const { manualOperationsMode } = req.body as { manualOperationsMode?: unknown };
-    if (typeof manualOperationsMode !== 'boolean') {
-      res.status(400).json({ error: 'manualOperationsMode (boolean) is required' });
+    const body = req.body as { manualOperationsMode?: unknown; aiRetainSessionMemory?: unknown };
+    const data: { manualOperationsMode?: boolean; aiRetainSessionMemory?: boolean } = {};
+    if (typeof body.manualOperationsMode === 'boolean') data.manualOperationsMode = body.manualOperationsMode;
+    if (typeof body.aiRetainSessionMemory === 'boolean') data.aiRetainSessionMemory = body.aiRetainSessionMemory;
+    if (Object.keys(data).length === 0) {
+      res.status(400).json({
+        error: 'Provide at least one field: manualOperationsMode (boolean) and/or aiRetainSessionMemory (boolean)',
+      });
       return;
     }
 
@@ -109,7 +116,7 @@ router.patch(
     try {
       const company = await prisma.company.update({
         where: { id },
-        data: { manualOperationsMode },
+        data,
       });
       res.json({ company });
     } catch (e) {

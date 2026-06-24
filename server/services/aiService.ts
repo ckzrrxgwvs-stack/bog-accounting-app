@@ -3,6 +3,11 @@
 import OpenAI from 'openai';
 import type { Request, Response } from 'express';
 import { isManualOperationsModeActive } from '../lib/manualOperationsGate';
+import { getOrCreateDefaultCompany } from './companyBootstrap';
+import {
+  formatRecentAiMemoriesForPrompt,
+  recordAiTenantMemoryIfEnabled,
+} from './aiTenantMemory';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'demo-key',
@@ -71,9 +76,16 @@ export async function chatWithAI(
     companyId?: string;
     userRole?: string;
     period?: string;
+    /** Tenant retrieval memory — appended to system instructions only */
+    extraSystemPrompt?: string;
   }
 ): Promise<{ response: string; model?: string; tokens?: number; latency: number }> {
   const startTime = Date.now();
+
+  const systemContent =
+    context?.extraSystemPrompt && context.extraSystemPrompt.trim().length > 0
+      ? `${SYSTEM_PROMPT}\n\n${context.extraSystemPrompt}`
+      : SYSTEM_PROMPT;
 
   if (isDemoMode) {
     // Return demo response
@@ -91,7 +103,7 @@ export async function chatWithAI(
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: systemContent },
         { role: 'user', content: userMessage },
       ],
       max_tokens: 1000,
@@ -135,7 +147,25 @@ export async function handleAIRequest(req: Request, res: Response) {
       return;
     }
 
-    const result = await chatWithAI(message, context);
+    const company = await getOrCreateDefaultCompany();
+    const memoryBlock = await formatRecentAiMemoriesForPrompt(
+      company.id,
+      'AI_CPA',
+      company.aiRetainSessionMemory
+    );
+
+    const result = await chatWithAI(message, {
+      ...(typeof context === 'object' && context !== null ? context : {}),
+      extraSystemPrompt: memoryBlock,
+    });
+
+    await recordAiTenantMemoryIfEnabled(
+      company.id,
+      'AI_CPA',
+      typeof message === 'string' ? message : '',
+      result.response,
+      Boolean(company.aiRetainSessionMemory) && !isDemoMode
+    );
 
     res.json({
       success: true,

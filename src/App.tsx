@@ -20,6 +20,8 @@ import { CFDI } from './pages/CFDI';
 import { Users } from './pages/Users';
 import { Settings } from './pages/Settings';
 import { ManualOperations } from './pages/ManualOperations';
+import { ProductIntelligence } from './pages/ProductIntelligence';
+import { AgentOperations } from './pages/AgentOperations';
 import { ErpHub } from './pages/ErpHub';
 import { PurchaseOrders } from './pages/PurchaseOrders';
 import { SalesOrders } from './pages/SalesOrders';
@@ -84,6 +86,8 @@ function App() {
           <Route path="users" element={<Users />} />
           <Route path="settings" element={<Settings />} />
           <Route path="settings/manual-operations" element={<ManualOperations />} />
+          <Route path="product-intelligence" element={<ProductIntelligence />} />
+          <Route path="agent-operations" element={<AgentOperations />} />
           <Route path="erp" element={<ErpHub />} />
           <Route path="erp/assistant" element={<ErpAssistant />} />
           <Route path="erp/purchase-orders" element={<PurchaseOrders />} />

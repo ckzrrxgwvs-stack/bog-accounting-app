@@ -100,11 +100,14 @@ export function PurchaseOrders() {
       window.alert('Add at least one line with a description.');
       return;
     }
-    const res = await api.createPurchaseOrder({
-      vendorId,
-      notes: notes.trim() || undefined,
-      lines: built,
-    });
+    const res = await api.createPurchaseOrder(
+      {
+        vendorId,
+        notes: notes.trim() || undefined,
+        lines: built,
+      },
+      { idempotencyKey: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `po-${Date.now()}` }
+    );
     if (!res.success) {
       window.alert(res.error ?? 'Create failed');
       return;

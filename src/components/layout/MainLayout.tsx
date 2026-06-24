@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { LogoWithStatus } from '@/components/Logo';
+import { useServerMode } from '@/hooks/useServerMode';
 import {
   LayoutDashboard,
   BookOpen,
@@ -30,6 +31,8 @@ import {
   UserCircle,
   Lock,
   PenLine,
+  Lightbulb,
+  Bot,
 } from 'lucide-react';
 import { useCompanyPolicy } from '@/hooks/useCompanyPolicy';
 
@@ -64,6 +67,18 @@ const navigation = [
 const bottomNavigation = [
   { name: 'Users', href: '/users', icon: Users, module: 'users' },
   {
+    name: 'Agent operations',
+    href: '/agent-operations',
+    icon: Bot,
+    module: 'agent_org',
+  },
+  {
+    name: 'Product intelligence',
+    href: '/product-intelligence',
+    icon: Lightbulb,
+    module: 'product_intel',
+  },
+  {
     name: 'Manual operations',
     href: '/settings/manual-operations',
     icon: PenLine,
@@ -82,6 +97,9 @@ export function MainLayout() {
   const { user, logout, hasModuleAccess } = useAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { manualOperationsMode, loading: policyLoading } = useCompanyPolicy();
+  const serverMode = useServerMode();
+  const logoStatus =
+    serverMode === 'database' ? 'active' : serverMode === 'loading' ? 'syncing' : 'demo';
 
   const isExecutive = Boolean(
     user && (user.role === 'PRESIDENT' || user.role === 'CFO' || user.role === 'CONTROLLER')
@@ -117,7 +135,7 @@ export function MainLayout() {
       >
         <div className="flex h-16 items-center justify-between border-b border-white/10 px-5">
           <Link to="/" className="min-w-0" onClick={() => setSidebarOpen(false)}>
-            <LogoWithStatus status="demo" />
+            <LogoWithStatus status={logoStatus} />
           </Link>
           <button
             type="button"
@@ -219,6 +237,18 @@ export function MainLayout() {
         </header>
 
         <main className="min-h-[calc(100vh-3.5rem)] lg:min-h-screen">
+          {serverMode === 'offline' && (
+            <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
+              API offline — showing browser demo data. Run <code className="font-mono">pnpm run dev:program</code> for
+              real books.
+            </div>
+          )}
+          {serverMode === 'demo' && (
+            <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
+              Mock API mode — connect <code className="font-mono">DATABASE_URL</code> and run{' '}
+              <code className="font-mono">pnpm run go-live:local</code> for persisted accounting.
+            </div>
+          )}
           <Outlet />
         </main>
 

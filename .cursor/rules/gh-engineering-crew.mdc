@@ -1,0 +1,16 @@
+---
+description: GH Engineering Crew — apply items 1–10 from central bank for all work in this project
+alwaysApply: true
+---
+
+# GH Engineering Crew (this project)
+
+Before building, deploying, or refactoring **BOG accounting-app**:
+
+1. Read **`~/engineering-crew/docs/GH_PROMPT_BANK.md`**
+2. Read **`docs/GH_COMPLIANCE.md`**
+3. Match to GH item; **verbatim prompt**; **item 8** for Face I vs Face II scope
+4. Route through **`@qa_engineer`** before production deploy
+5. Log in **`~/engineering-crew/docs/WORK_PROCEDURE_LOG.md`**
+
+**This project priorities:** #9 API auth → #10 CI/CD + backend deploy → #8 Face I scope.

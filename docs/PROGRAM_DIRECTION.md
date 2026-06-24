@@ -42,6 +42,9 @@ When prioritizing work, use these checks:
 | Document | Purpose |
 | -------- | ------- |
 | **`PRODUCT_PHASES.md`** | **Face I / II / III…** — product launches; accounting-first vs ERP-later; parallel development rules. |
+| **`PRODUCT_INTELLIGENCE.md`** | Feedback rail, allow-listed intel digest, AI spec drafts for developers (human-gated). |
+| **`GO_LIVE_TODAY.md`** | **Go live** — local Docker path, Render API + Vercel, agent checklist. |
+| **`AGENT_ORGANIZATION.md`** | Agent org chart (PM, Systems Engineer, Bookkeeper, Connector, Controller) + `/api/agent-org` spine. |
 | **`MODULE_ROADMAP.md`** | **Modules 1–8** — GAAP-aligned **build order** *within* the accounting core (not the same numbering as Face I). |
 | **`../SPEC.md`** (repo root) | Broad technical specification; may lag—check dates against this folder for **current** direction. |
 

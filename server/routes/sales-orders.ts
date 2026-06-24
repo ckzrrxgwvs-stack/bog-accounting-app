@@ -5,6 +5,20 @@ import { useDatabase } from '../lib/dbMode';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
 import { shipSalesOrderAndBill } from '../services/erpAccountingIntegration';
+import { allocateNextDocumentSeq, formatSalesOrderNumber } from '../services/documentCounters';
+import {
+  computeSalesOrderFingerprint,
+  hashIdempotencyKey,
+  orderDedupWindowMinutes,
+} from '../services/creationSafety';
+
+function readIdempotencyKey(req: { headers: Record<string, unknown>; body?: unknown }): string | undefined {
+  const h = req.headers['idempotency-key'];
+  if (typeof h === 'string' && h.trim()) return h.trim();
+  const b = req.body as { idempotencyKey?: string } | undefined;
+  if (typeof b?.idempotencyKey === 'string' && b.idempotencyKey.trim()) return b.idempotencyKey.trim();
+  return undefined;
+}
 
 const router = Router();
 
@@ -117,6 +131,7 @@ router.post('/', async (req, res) => {
     requestedShipDate?: string;
     currency?: string;
     notes?: string;
+    customerPurchaseOrderRef?: string;
     lines?: { description?: string; quantity?: number; unitPrice?: number; inventoryItemId?: string | null }[];
   };
 
@@ -160,6 +175,9 @@ router.post('/', async (req, res) => {
 
   const taxAmount = 0;
   const total = subtotal;
+  const crefRaw =
+    typeof body.customerPurchaseOrderRef === 'string' ? body.customerPurchaseOrderRef.trim() : '';
+  const customerPurchaseOrderRef = crefRaw.length > 0 ? crefRaw : null;
 
   if (!useDatabase()) {
     const id = `so-mock-${Date.now()}`;
@@ -181,6 +199,8 @@ router.post('/', async (req, res) => {
     return;
   }
 
+  const idemRaw = readIdempotencyKey(req);
+
   try {
     const company = await getOrCreateDefaultCompany();
     const customer = await prisma.customer.findFirst({
@@ -191,31 +211,42 @@ router.post('/', async (req, res) => {
       return;
     }
 
-    const soNumber = `SO-${Date.now()}`;
-    const orderDate = new Date();
-    const requestedShipDate = body.requestedShipDate ? new Date(body.requestedShipDate) : null;
+    const fingerprint = computeSalesOrderFingerprint(
+      customer.id,
+      currency,
+      builtLines.map((l) => ({
+        inventoryItemId: l.inventoryItemId,
+        description: l.description,
+        quantity: l.quantity.toFixed(4),
+        unitPrice: l.unitPrice.toFixed(4),
+      }))
+    );
 
-    const created = await prisma.salesOrder.create({
-      data: {
-        companyId: company.id,
-        soNumber,
-        customerId: customer.id,
-        orderDate,
-        requestedShipDate,
-        status: 'DRAFT',
-        currency,
-        subtotal: new Prisma.Decimal(String(subtotal)),
-        taxAmount: new Prisma.Decimal(String(taxAmount)),
-        total: new Prisma.Decimal(String(total)),
-        notes: body.notes ?? null,
-        lines: { create: builtLines },
-      },
-      include: { customer: true, lines: true },
-    });
+    const windowMin = orderDedupWindowMinutes();
+    const windowStart = new Date(Date.now() - windowMin * 60 * 1000);
 
-    res.status(201).json({
+    const payloadForJson = (created: {
+      id: string;
+      soNumber: string;
+      customerId: string;
+      customer: { name: string };
+      orderDate: Date;
+      requestedShipDate: Date | null;
+      status: SalesOrderStatus;
+      currency: string;
+      total: unknown;
+      notes: string | null;
+      lines: {
+        id: string;
+        lineNumber: number;
+        description: string;
+        quantity: unknown;
+        unitPrice: unknown;
+        lineTotal: unknown;
+      }[];
+    }) => ({
       salesOrder: {
-        ...mapSo(created),
+        ...mapSo({ ...created, customer: created.customer }),
         lines: created.lines.map((l) => ({
           id: l.id,
           lineNumber: l.lineNumber,
@@ -226,6 +257,170 @@ router.post('/', async (req, res) => {
         })),
       },
     });
+
+    const runTxn = async () =>
+      prisma.$transaction(
+        async (tx) => {
+          if (idemRaw) {
+            const keyHash = hashIdempotencyKey(company.id, 'SALES_ORDER_IDEMPOTENCY', idemRaw);
+            const dedup = await tx.creationDedupKey.findUnique({
+              where: {
+                companyId_scope_keyHash: {
+                  companyId: company.id,
+                  scope: 'SALES_ORDER_IDEMPOTENCY',
+                  keyHash,
+                },
+              },
+            });
+            if (dedup?.resourceKind === 'SalesOrder') {
+              const replay = await tx.salesOrder.findFirst({
+                where: { id: dedup.resourceId, companyId: company.id },
+                include: { customer: true, lines: { orderBy: { lineNumber: 'asc' } } },
+              });
+              if (replay) return { kind: 'replay' as const, row: replay };
+            }
+          }
+
+          const dupFinger = await tx.salesOrder.findFirst({
+            where: {
+              companyId: company.id,
+              customerId: customer.id,
+              duplicateGuardHash: fingerprint,
+              status: { in: ['DRAFT', 'CONFIRMED'] },
+              createdAt: { gte: windowStart },
+            },
+          });
+          if (dupFinger) {
+            return {
+              kind: 'dupFinger' as const,
+              soNumber: dupFinger.soNumber,
+              id: dupFinger.id,
+            };
+          }
+
+          if (customerPurchaseOrderRef) {
+            const dupRef = await tx.salesOrder.findFirst({
+              where: {
+                companyId: company.id,
+                customerId: customer.id,
+                customerPurchaseOrderRef,
+                status: { notIn: ['CANCELLED'] },
+              },
+            });
+            if (dupRef) {
+              return {
+                kind: 'dupRef' as const,
+                soNumber: dupRef.soNumber,
+                id: dupRef.id,
+              };
+            }
+          }
+
+          const seq = await allocateNextDocumentSeq(company.id, 'SALES_ORDER', tx);
+          const soNumber = formatSalesOrderNumber(seq);
+          const orderDate = new Date();
+          const requestedShipDate = body.requestedShipDate ? new Date(body.requestedShipDate) : null;
+
+          const created = await tx.salesOrder.create({
+            data: {
+              companyId: company.id,
+              soNumber,
+              customerId: customer.id,
+              orderDate,
+              requestedShipDate,
+              status: 'DRAFT',
+              currency,
+              subtotal: new Prisma.Decimal(String(subtotal)),
+              taxAmount: new Prisma.Decimal(String(taxAmount)),
+              total: new Prisma.Decimal(String(total)),
+              notes: body.notes ?? null,
+              duplicateGuardHash: fingerprint,
+              customerPurchaseOrderRef,
+              lines: { create: builtLines },
+            },
+            include: { customer: true, lines: { orderBy: { lineNumber: 'asc' } } },
+          });
+
+          if (idemRaw) {
+            const keyHash = hashIdempotencyKey(company.id, 'SALES_ORDER_IDEMPOTENCY', idemRaw);
+            try {
+              await tx.creationDedupKey.create({
+                data: {
+                  companyId: company.id,
+                  scope: 'SALES_ORDER_IDEMPOTENCY',
+                  keyHash,
+                  resourceKind: 'SalesOrder',
+                  resourceId: created.id,
+                },
+              });
+            } catch (e: unknown) {
+              const code = e && typeof e === 'object' && 'code' in e ? String((e as { code?: string }).code) : '';
+              if (code === 'P2002') {
+                const dedup = await tx.creationDedupKey.findUnique({
+                  where: {
+                    companyId_scope_keyHash: {
+                      companyId: company.id,
+                      scope: 'SALES_ORDER_IDEMPOTENCY',
+                      keyHash,
+                    },
+                  },
+                });
+                if (dedup?.resourceKind === 'SalesOrder') {
+                  const replay = await tx.salesOrder.findFirst({
+                    where: { id: dedup.resourceId, companyId: company.id },
+                    include: { customer: true, lines: { orderBy: { lineNumber: 'asc' } } },
+                  });
+                  if (replay) return { kind: 'replay' as const, row: replay };
+                }
+              }
+              throw e;
+            }
+          }
+
+          return { kind: 'created' as const, row: created };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      );
+
+    type TxnOut = Awaited<ReturnType<typeof runTxn>>;
+    const deliver = (result: TxnOut) => {
+      if (result.kind === 'dupFinger') {
+        res.status(409).json({
+          error: `Possible duplicate sales order: same customer and lines as ${result.soNumber} within the last ${windowMin} minutes.`,
+          code: 'DUPLICATE_ORDER_FINGERPRINT',
+          duplicateOfSoNumber: result.soNumber,
+          duplicateOfId: result.id,
+        });
+        return;
+      }
+      if (result.kind === 'dupRef') {
+        res.status(409).json({
+          error: `Customer PO reference "${customerPurchaseOrderRef}" is already used on order ${result.soNumber}.`,
+          code: 'DUPLICATE_CUSTOMER_PO_REF',
+          duplicateOfSoNumber: result.soNumber,
+          duplicateOfId: result.id,
+        });
+        return;
+      }
+      if (result.kind === 'replay') {
+        res.status(200).json({
+          ...payloadForJson(result.row),
+          idempotentReplay: true,
+        });
+        return;
+      }
+      res.status(201).json(payloadForJson(result.row));
+    };
+
+    try {
+      deliver(await runTxn());
+    } catch (inner: unknown) {
+      if (inner instanceof Prisma.PrismaClientKnownRequestError && inner.code === 'P2034') {
+        deliver(await runTxn());
+      } else {
+        throw inner;
+      }
+    }
   } catch (e) {
     console.error(e);
     res.status(400).json({ error: 'Could not create sales order' });

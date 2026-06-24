@@ -14,6 +14,8 @@ interface RequestOptions {
   headers?: Record<string, string>;
   /** Don't attach Bearer token (used for login). */
   skipAuth?: boolean;
+  /** Safe retries / double-submit protection (SO, PO, etc.). */
+  idempotencyKey?: string;
 }
 
 function getAuthBearerToken(): string | null {
@@ -52,6 +54,9 @@ class ApiClient {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
+    if (options.idempotencyKey?.trim()) {
+      headers['Idempotency-Key'] = options.idempotencyKey.trim();
+    }
 
     try {
       const response = await fetch(url, {
@@ -84,7 +89,9 @@ class ApiClient {
   }
 
   async getHealth() {
-    return this.request<{ status: string; timestamp: string; openai: boolean; database: boolean }>('/health');
+    return this.request<{ status: string; timestamp: string; openai: boolean; database: boolean; mock?: boolean }>(
+      '/health'
+    );
   }
 
   /** Requires DATABASE_URL and users with bcrypt password hashes on the server. */
@@ -141,8 +148,11 @@ class ApiClient {
     return this.request(`/company/${id}`, { method: 'PATCH', body: data });
   }
 
-  /** President / CFO / Controller only — toggles manual bookkeeping mode (disables AI CPA & automated AI review). */
-  async patchCompanyExecutiveSettings(id: string, body: { manualOperationsMode: boolean }) {
+  /** President / CFO / Controller — manual operations mode and/or AI tenant memory opt-in. */
+  async patchCompanyExecutiveSettings(
+    id: string,
+    body: { manualOperationsMode?: boolean; aiRetainSessionMemory?: boolean }
+  ) {
     return this.request<{ company: Record<string, unknown> }>(`/company/${id}/executive-settings`, {
       method: 'PATCH',
       body,
@@ -165,14 +175,22 @@ class ApiClient {
     }>('/purchase-orders');
   }
 
-  async createPurchaseOrder(body: {
-    vendorId: string;
-    expectedDate?: string;
-    currency?: string;
-    notes?: string;
-    lines: { description: string; quantity: number; unitCost: number; inventoryItemId?: string | null }[];
-  }) {
-    return this.request('/purchase-orders', { method: 'POST', body });
+  async createPurchaseOrder(
+    body: {
+      vendorId: string;
+      expectedDate?: string;
+      currency?: string;
+      notes?: string;
+      supplierReference?: string;
+      lines: { description: string; quantity: number; unitCost: number; inventoryItemId?: string | null }[];
+    },
+    opts?: { idempotencyKey?: string }
+  ) {
+    return this.request('/purchase-orders', {
+      method: 'POST',
+      body,
+      idempotencyKey: opts?.idempotencyKey,
+    });
   }
 
   async patchPurchaseOrderStatus(id: string, status: string) {
@@ -197,14 +215,22 @@ class ApiClient {
     }>('/sales-orders');
   }
 
-  async createSalesOrder(body: {
-    customerId: string;
-    requestedShipDate?: string;
-    currency?: string;
-    notes?: string;
-    lines: { description: string; quantity: number; unitPrice: number; inventoryItemId?: string | null }[];
-  }) {
-    return this.request('/sales-orders', { method: 'POST', body });
+  async createSalesOrder(
+    body: {
+      customerId: string;
+      requestedShipDate?: string;
+      currency?: string;
+      notes?: string;
+      customerPurchaseOrderRef?: string;
+      lines: { description: string; quantity: number; unitPrice: number; inventoryItemId?: string | null }[];
+    },
+    opts?: { idempotencyKey?: string }
+  ) {
+    return this.request('/sales-orders', {
+      method: 'POST',
+      body,
+      idempotencyKey: opts?.idempotencyKey,
+    });
   }
 
   async patchSalesOrderStatus(id: string, status: string) {
@@ -650,6 +676,117 @@ class ApiClient {
       convertedAmount: number;
       date: string;
     }>(`/exchange-rates/convert?${q.toString()}`);
+  }
+
+  // --- Product intelligence (feedback, allow-listed intel digest, spec drafts) ---
+  async submitProductFeedback(body: { category: string; title?: string; body: string }) {
+    return this.request<{ feedback: Record<string, unknown> }>('/product-intel/feedback', {
+      method: 'POST',
+      body,
+    });
+  }
+
+  async getMyProductFeedback() {
+    return this.request<{ feedback: Record<string, unknown>[] }>('/product-intel/feedback/mine');
+  }
+
+  async getCompanyProductFeedback() {
+    return this.request<{ feedback: Record<string, unknown>[] }>('/product-intel/feedback');
+  }
+
+  async patchProductFeedbackStatus(id: string, status: string) {
+    return this.request(`/product-intel/feedback/${id}`, { method: 'PATCH', body: { status } });
+  }
+
+  async listIntelSources() {
+    return this.request<{ sources: Record<string, unknown>[] }>('/product-intel/intel/sources');
+  }
+
+  async createIntelSource(body: { label: string; url: string }) {
+    return this.request<{ source: Record<string, unknown> }>('/product-intel/intel/sources', {
+      method: 'POST',
+      body,
+    });
+  }
+
+  async deleteIntelSource(id: string) {
+    return this.request(`/product-intel/intel/sources/${id}`, { method: 'DELETE' });
+  }
+
+  async runIntelDigest() {
+    return this.request<{ ok: boolean; sourcesProcessed: number; itemsWritten: number }>(
+      '/product-intel/intel/run',
+      { method: 'POST', body: {} }
+    );
+  }
+
+  async listIntelDigests(params?: { limit?: number }) {
+    const q = params?.limit != null ? `?limit=${params.limit}` : '';
+    return this.request<{ digests: Record<string, unknown>[] }>(`/product-intel/intel/digests${q}`);
+  }
+
+  async draftProductSpec(topic: string, context?: string) {
+    return this.request<{ markdown: string }>('/product-intel/spec-draft', {
+      method: 'POST',
+      body: { topic, context },
+    });
+  }
+
+  // --- Agent org (automated accounting program) ---
+  async getAgentOrgDigest() {
+    return this.request<Record<string, unknown>>('/agent-org/digest');
+  }
+
+  async listAgentOrgEvents(params?: { status?: string; limit?: number }) {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.limit != null) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return this.request<{ events: Record<string, unknown>[] }>(`/agent-org/events${qs ? `?${qs}` : ''}`);
+  }
+
+  async ingestAgentOrgEvent(body: {
+    source: string;
+    eventType: string;
+    externalId?: string;
+    idempotencyKey?: string;
+    payload: Record<string, unknown>;
+  }) {
+    return this.request<{ event: Record<string, unknown>; idempotentReplay?: boolean }>('/agent-org/events', {
+      method: 'POST',
+      body,
+    });
+  }
+
+  async patchAgentOrgEvent(id: string, status: string, statusMessage?: string) {
+    return this.request(`/agent-org/events/${id}`, {
+      method: 'PATCH',
+      body: { status, statusMessage },
+    });
+  }
+
+  async runAgentBookkeeper() {
+    return this.request<Record<string, unknown>>('/agent-org/run-bookkeeper', { method: 'POST', body: {} });
+  }
+
+  async listAgentOrgWork(params?: { role?: string }) {
+    const q = params?.role ? `?role=${encodeURIComponent(params.role)}` : '';
+    return this.request<{ workItems: Record<string, unknown>[] }>(`/agent-org/work${q}`);
+  }
+
+  async createAgentWorkItem(body: {
+    agentRole: string;
+    title: string;
+    description?: string;
+    priority?: number;
+    buildSpecJson?: Record<string, unknown>;
+    eventId?: string;
+  }) {
+    return this.request<{ workItem: Record<string, unknown> }>('/agent-org/work', { method: 'POST', body });
+  }
+
+  async getShopifyConnectorStatus() {
+    return this.request<Record<string, unknown>>('/connectors/shopify/status');
   }
 }
 

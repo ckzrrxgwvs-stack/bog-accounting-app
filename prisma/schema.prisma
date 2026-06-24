@@ -45,6 +45,12 @@ model Company {
   /** When true, AI CPA chat, ERP Assistant (clerks/CS), automated accounting review, and related AI endpoints are disabled — classic human-driven workflows only (executive roles only). */
   manualOperationsMode      Boolean @default(false)
 
+  /**
+   * Executive opt-in: store anonymized excerpts from AI CPA / ERP Assistant turns in this tenant only,
+   * and inject recent excerpts into future prompts (retrieval memory — does not retrain the base model).
+   */
+  aiRetainSessionMemory     Boolean @default(false)
+
   // Default GL account codes (must exist in chart of accounts for posting AR/AP/invoices/payments)
   glCashAccountCode          String? @default("1100")
   glArAccountCode            String? @default("1200")
@@ -53,6 +59,10 @@ model Company {
   glExpenseAccountCode       String? @default("6100")
   glSalesTaxPayableAccountCode String? @default("2150")
   glPurchasesExpenseAccountCode String? @default("5100")
+
+  /** Commerce connector — Shopify store domain (e.g. my-store.myshopify.com); webhook secret stays in env. */
+  useShopifyConnector Boolean @default(false)
+  shopifyStoreDomain  String?
 
   // Timestamps
   createdAt   DateTime @default(now())
@@ -94,6 +104,222 @@ model Company {
 
   /** Set when this tenant is activated with a signed-customer registration code (optional 1:1) */
   customerRegistration CustomerRegistration?
+
+  /** Monotonic counters per document family (SO/PO numbers, etc.) — allocate inside transactions. */
+  documentCounters   DocumentCounter[]
+  /** Client idempotency keys for safe retries / double-submit protection. */
+  creationDedupKeys CreationDedupKey[]
+  aiTenantMemories  AiTenantMemory[]
+  productFeedbacks    ProductFeedback[]
+  accountingEvents    AccountingEvent[]
+  agentWorkItems      AgentWorkItem[]
+}
+
+enum AiMemoryChannel {
+  AI_CPA
+  ERP_ASSISTANT
+}
+
+/** Opt-in tenant memory for AI assistants — excerpts only; scoped to one company; capped server-side. */
+model AiTenantMemory {
+  id               String          @id @default(cuid())
+  companyId        String
+  channel          AiMemoryChannel
+  promptExcerpt    String          @db.Text
+  responseExcerpt  String          @db.Text
+  createdAt        DateTime        @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, channel, createdAt])
+}
+
+enum ProductFeedbackCategory {
+  BUG
+  IMPROVEMENT_IDEA
+  WORKFLOW_PAIN
+  PRAISE
+  OTHER
+}
+
+enum ProductFeedbackStatus {
+  NEW
+  TRIAGED
+  ARCHIVED
+}
+
+/** Internal product feedback / improvement requests — scoped per tenant (company). */
+model ProductFeedback {
+  id        String                  @id @default(cuid())
+  companyId String
+  userId    String?
+  userRole  String?
+  category  ProductFeedbackCategory
+  title     String?
+  body      String                  @db.Text
+  status    ProductFeedbackStatus   @default(NEW)
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, createdAt])
+  @@index([companyId, userId])
+}
+
+/** Deployment-wide allow-listed intel URLs — fetched only when administrators trigger digest or cron secret. */
+model IntelFeedSource {
+  id        String   @id @default(cuid())
+  label     String
+  url       String
+  enabled   Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items IntelDigestItem[]
+}
+
+model IntelDigestItem {
+  id         String   @id @default(cuid())
+  sourceId   String
+  fetchedAt  DateTime @default(now())
+  title      String?
+  excerpt    String   @db.Text
+  summary    String?  @db.Text
+  httpStatus Int?
+
+  source IntelFeedSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, fetchedAt])
+}
+
+// ============================================
+// AGENT ORG — automated accounting program spine
+// ============================================
+
+enum AccountingEventSource {
+  MANUAL
+  SHOPIFY
+  EBAY
+  BANK
+  SYSTEM
+}
+
+enum AccountingEventType {
+  SALE_ORDER_PAID
+  REFUND
+  PAYOUT
+  VENDOR_BILL
+  PAYMENT_RECEIVED
+  ADJUSTMENT
+}
+
+enum AccountingEventStatus {
+  RECEIVED
+  QUEUED
+  DRAFT_READY
+  POSTED
+  NEEDS_REVIEW
+  REJECTED
+  FAILED
+}
+
+/** Normalized business event from connectors — Bookkeeper turns these into drafts/posts. */
+model AccountingEvent {
+  id             String                @id @default(cuid())
+  companyId      String
+  source         AccountingEventSource
+  eventType      AccountingEventType
+  externalId     String?
+  idempotencyKey String?
+  payloadJson    Json
+  status         AccountingEventStatus @default(RECEIVED)
+  statusMessage  String?
+  invoiceId      String?
+  journalEntryId String?
+  processedAt    DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  workItems AgentWorkItem[]
+
+  @@unique([companyId, source, externalId])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, eventType])
+}
+
+enum AgentRole {
+  PM_ORCHESTRATOR
+  SYSTEMS_ENGINEER
+  BOOKKEEPER
+  CONNECTOR
+  CONTROLLER
+  AP
+  AR
+}
+
+enum AgentWorkStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  BLOCKED
+  CANCELLED
+}
+
+/** Work queue for the agent org — PM routes; Systems Engineer implements buildSpecJson tickets. */
+model AgentWorkItem {
+  id            String          @id @default(cuid())
+  companyId     String
+  agentRole     AgentRole
+  title         String
+  description   String?         @db.Text
+  priority      Int             @default(50)
+  status        AgentWorkStatus @default(OPEN)
+  buildSpecJson Json?
+  eventId       String?
+  createdBy     String?
+  completedAt   DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  event   AccountingEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, agentRole, status, priority])
+  @@index([companyId, status, createdAt])
+}
+
+// ============================================
+// DOCUMENT NUMBERING & DUPLICATE GUARDS
+// ============================================
+
+model DocumentCounter {
+  companyId String
+  scope     String // e.g. SALES_ORDER, PURCHASE_ORDER
+  lastValue Int    @default(0)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, scope])
+}
+
+/** Stores hashed idempotency keys — replays return the original resource (Stripe-style). */
+model CreationDedupKey {
+  id           String   @id @default(cuid())
+  companyId    String
+  scope        String // SALES_ORDER_IDEMPOTENCY | PURCHASE_ORDER_IDEMPOTENCY
+  keyHash      String
+  resourceKind String // SalesOrder | PurchaseOrder
+  resourceId   String
+  createdAt    DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, scope, keyHash])
+  @@index([companyId, scope, createdAt])
 }
 
 // Signed-customer registration keys (product-key style; tracked per issued customer)
@@ -167,6 +393,7 @@ model User {
   chatSessions  ChatSession[]
   messages      ChatMessage[]
   auditLogs     AuditLog[]
+  productFeedbacks ProductFeedback[]
 }
 
 enum UserRoleType {
@@ -651,6 +878,10 @@ model PurchaseOrder {
   total        Decimal  @db.Decimal(18, 2)
   notes        String?
 
+  duplicateGuardHash String?
+  /** Your reference / vendor quote # — blocks duplicate open PO for same vendor when set. */
+  supplierReference  String?
+
   companyId    String
   company      Company  @relation(fields: [companyId], references: [id])
   vendor       Vendor   @relation(fields: [vendorId], references: [id])
@@ -663,6 +894,7 @@ model PurchaseOrder {
 
   @@unique([companyId, poNumber])
   @@index([companyId, status])
+  @@index([companyId, vendorId, duplicateGuardHash])
 }
 
 model PurchaseOrderLine {
@@ -695,6 +927,11 @@ model SalesOrder {
   total             Decimal  @db.Decimal(18, 2)
   notes             String?
 
+  /** Canonical hash of customer + currency + sorted lines — duplicate-detection window (clerks). */
+  duplicateGuardHash       String?
+  /** Customer PO # — when set, blocks a second open order with the same ref for this customer. */
+  customerPurchaseOrderRef String?
+
   companyId         String
   company           Company  @relation(fields: [companyId], references: [id])
   customer          Customer @relation(fields: [customerId], references: [id])
@@ -708,6 +945,7 @@ model SalesOrder {
 
   @@unique([companyId, soNumber])
   @@index([companyId, status])
+  @@index([companyId, customerId, duplicateGuardHash])
 }
 
 model SalesOrderLine {

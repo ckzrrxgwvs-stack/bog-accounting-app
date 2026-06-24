@@ -28,16 +28,35 @@ import { salesOrdersRouter } from './routes/sales-orders';
 import { bomRouter } from './routes/bom';
 import { productionOrdersRouter } from './routes/production-orders';
 import { logisticsRouter } from './routes/logistics';
+import { productIntelRouter } from './routes/productIntel';
+import { agentOrgRouter } from './routes/agentOrg';
+import { shopifyConnectorRouter } from './routes/shopifyConnector';
+import { useDatabase } from './lib/dbMode';
+import { ensureProgramBootstrap } from './services/ensureProgramBootstrap';
 
-config();
+config({ override: true });
+// start:mock sets BOG_MOCK=1 before dotenv; keep mock mode even if .env has DATABASE_URL
+if (process.env.BOG_MOCK === '1' || process.env.BOG_MOCK === 'true') {
+  delete process.env.DATABASE_URL;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+const corsOrigins = (process.env.FRONTEND_URL ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 // Middleware
 app.set('trust proxy', 1);
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-app.use(cors());
+app.use(
+  cors({
+    origin: corsOrigins.length > 0 ? corsOrigins : true,
+    credentials: true,
+  })
+);
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.RATE_LIMIT_MAX ?? 500),
@@ -45,7 +64,14 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 app.use('/api/', apiLimiter);
-app.use(express.json({ limit: '512kb' }));
+app.use(express.json({
+  limit: '512kb',
+  verify: (req, _res, buf) => {
+    if (req.originalUrl?.startsWith('/api/connectors/shopify/webhook')) {
+      (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+    }
+  },
+}));
 
 // API Routes (paths mirror accounting-app/src/services/api.ts)
 app.use('/api/ai', aiRouter);
@@ -71,6 +97,9 @@ app.use('/api/sales-orders', salesOrdersRouter);
 app.use('/api/bom', bomRouter);
 app.use('/api/production-orders', productionOrdersRouter);
 app.use('/api/logistics', logisticsRouter);
+app.use('/api/product-intel', productIntelRouter);
+app.use('/api/agent-org', agentOrgRouter);
+app.use('/api/connectors/shopify', shopifyConnectorRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -78,7 +107,8 @@ app.get('/api/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     openai: !!process.env.OPENAI_API_KEY,
-    database: !!process.env.DATABASE_URL
+    database: useDatabase(),
+    mock: process.env.BOG_MOCK === '1' || process.env.BOG_MOCK === 'true',
   });
 });
 
@@ -91,9 +121,19 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`   Health check: http://localhost:${PORT}/api/health`);
+  if (useDatabase()) {
+    console.log('   📦 Database mode (DATABASE_URL set)');
+    try {
+      await ensureProgramBootstrap();
+    } catch (e) {
+      console.error('   ⚠️  Bootstrap failed:', e instanceof Error ? e.message : e);
+    }
+  } else {
+    console.log('   🧪 Mock mode (in-memory books — store + Investment SMA)');
+  }
   if (!process.env.OPENAI_API_KEY) {
     console.log('   ⚠️  Warning: OPENAI_API_KEY not set - AI CPA will run in demo mode');
   }

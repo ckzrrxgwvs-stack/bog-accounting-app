@@ -1,0 +1,25 @@
+# Deploy BOG API to Render (free tier). Frontend stays on Vercel.
+# After deploy: set Vercel env VITE_API_URL=https://YOUR-SERVICE.onrender.com
+services:
+  - type: web
+    name: bog-accounting-api
+    runtime: node
+    plan: free
+    buildCommand: pnpm install && pnpm exec prisma generate && pnpm exec prisma db push && pnpm exec tsc -b
+    startCommand: pnpm exec tsx server/index.ts
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://bog-accounting-v5.vercel.app
+      - key: SHOPIFY_WEBHOOK_SECRET
+        sync: false
+      - key: AGENT_ORG_CRON_SECRET
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false

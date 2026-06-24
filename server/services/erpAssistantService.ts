@@ -9,6 +9,10 @@ import { databaseConfigured } from '../lib/dbMode';
 import { getOrCreateDefaultCompany } from './companyBootstrap';
 import { dec } from '../lib/serialize';
 import { isManualOperationsModeActive } from '../lib/manualOperationsGate';
+import {
+  formatRecentAiMemoriesForPrompt,
+  recordAiTenantMemoryIfEnabled,
+} from './aiTenantMemory';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'demo-key',
@@ -177,7 +181,15 @@ export async function chatWithErpAssistant(userMessage: string): Promise<{
   latency: number;
 }> {
   const start = Date.now();
+  const company = await getOrCreateDefaultCompany();
   const snapshot = await buildErpSnapshot();
+  const memorySection = await formatRecentAiMemoriesForPrompt(
+    company.id,
+    'ERP_ASSISTANT',
+    company.aiRetainSessionMemory
+  );
+
+  const baseSystem = `${ERP_SYSTEM_PROMPT}\n\n${snapshot}${memorySection ? `\n\n${memorySection}` : ''}`;
 
   if (isDemoMode) {
     await new Promise((r) => setTimeout(r, 600));
@@ -193,7 +205,7 @@ export async function chatWithErpAssistant(userMessage: string): Promise<{
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: `${ERP_SYSTEM_PROMPT}\n\n${snapshot}` },
+        { role: 'system', content: baseSystem },
         { role: 'user', content: userMessage },
       ],
       max_tokens: 1200,
@@ -203,6 +215,15 @@ export async function chatWithErpAssistant(userMessage: string): Promise<{
     const response =
       completion.choices[0]?.message?.content ||
       'I could not generate a response. Please try again.';
+
+    await recordAiTenantMemoryIfEnabled(
+      company.id,
+      'ERP_ASSISTANT',
+      userMessage,
+      response,
+      Boolean(company.aiRetainSessionMemory)
+    );
+
     return {
       response,
       model: 'gpt-4o',

@@ -4,6 +4,7 @@ import { Router } from 'express';
 import { AccountType, AuditAction } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
+import { getOrCreateInvestmentSmaCompany } from '../services/investmentSmaBootstrap';
 import { aggregatePostedJournalThrough, signedBalanceForAccount } from '../services/journalAggregates';
 import { writeAuditLog } from '../services/auditLog';
 
@@ -22,7 +23,45 @@ let mockAccounts: {
   { id: '1', code: '1100', name: 'Cash', type: 'ASSET', balance: 0, isActive: true, allowPosting: true },
   { id: '2', code: '1200', name: 'Accounts Receivable', type: 'ASSET', balance: 0, isActive: true, allowPosting: true },
   { id: '3', code: '2100', name: 'Accounts Payable', type: 'LIABILITY', balance: 0, isActive: true, allowPosting: true },
+  { id: '4', code: '4100', name: 'Sales Revenue', type: 'REVENUE', balance: 0, isActive: true, allowPosting: true },
+  { id: '5', code: '5100', name: 'Cost of Goods Sold', type: 'COST_OF_GOODS_SOLD', balance: 0, isActive: true, allowPosting: true },
 ];
+
+/** Separate mock book for investment-fund-crew (not store). */
+let mockInvestmentAccounts: {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  balance: number;
+  isActive?: boolean;
+  allowPosting?: boolean;
+}[] = [
+  { id: 'inv-1', code: '1200', name: 'Cash — Investment Brokerage (Agentic)', type: 'ASSET', balance: 0, isActive: true, allowPosting: true },
+  { id: 'inv-2', code: '1210', name: 'Securities at cost', type: 'ASSET', balance: 0, isActive: true, allowPosting: true },
+  { id: 'inv-3', code: '1211', name: 'Unrealized gain on securities', type: 'ASSET', balance: 0, isActive: true, allowPosting: true },
+  { id: 'inv-4', code: '1212', name: 'Unrealized loss on securities', type: 'ASSET', balance: 0, isActive: true, allowPosting: true },
+  { id: 'inv-5', code: '4500', name: 'Dividend income', type: 'REVENUE', balance: 0, isActive: true, allowPosting: true },
+  { id: 'inv-6', code: '4610', name: 'Realized gain on securities', type: 'REVENUE', balance: 0, isActive: true, allowPosting: true },
+  { id: 'inv-7', code: '4611', name: 'Realized loss on securities', type: 'EXPENSE', balance: 0, isActive: true, allowPosting: true },
+  { id: 'inv-8', code: '6310', name: 'Brokerage commissions & fees', type: 'EXPENSE', balance: 0, isActive: true, allowPosting: true },
+];
+
+function isInvestmentBook(req: { query: Record<string, unknown> }): boolean {
+  return req.query.book === 'investment_sma';
+}
+
+async function resolveCompany(req: { query: Record<string, unknown> }) {
+  if (isInvestmentBook(req)) {
+    if (!useDatabase()) return null; // GET / uses mockInvestmentAccounts directly
+    return getOrCreateInvestmentSmaCompany();
+  }
+  return getOrCreateDefaultCompany();
+}
+
+function mockListForBook(req: { query: Record<string, unknown> }) {
+  return isInvestmentBook(req) ? [...mockInvestmentAccounts] : [...mockAccounts];
+}
 
 function useDatabase(): boolean {
   return !!process.env.DATABASE_URL;
@@ -45,7 +84,11 @@ router.get('/reports/trial-balance', async (req, res) => {
   }
 
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompany(req);
+    if (!company) {
+      res.status(503).json({ error: 'Company unavailable' });
+      return;
+    }
     const asOf = new Date();
     const agg = await aggregatePostedJournalThrough(company.id, asOf);
     const accounts = await prisma.account.findMany({
@@ -90,7 +133,7 @@ router.get('/', async (req, res) => {
   const showInactive = includeInactive === '1' || includeInactive === 'true';
 
   if (!useDatabase()) {
-    let list = [...mockAccounts];
+    let list = mockListForBook(req);
     if (!showInactive) list = list.filter((a) => a.isActive !== false);
     if (type) list = list.filter((a) => a.type === type);
     if (search) {
@@ -102,7 +145,11 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompany(req);
+    if (!company) {
+      res.status(503).json({ error: 'Company unavailable' });
+      return;
+    }
     const q = search ? String(search).trim() : '';
     const asOf = new Date();
     const agg = await aggregatePostedJournalThrough(company.id, asOf);
@@ -160,7 +207,11 @@ router.get('/:id', async (req, res) => {
   }
 
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompany(req);
+    if (!company) {
+      res.status(503).json({ error: 'Company unavailable' });
+      return;
+    }
     const asOf = new Date();
     const agg = await aggregatePostedJournalThrough(company.id, asOf);
     const account = await prisma.account.findFirst({
@@ -211,7 +262,11 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompany(req);
+    if (!company) {
+      res.status(503).json({ error: 'Company unavailable' });
+      return;
+    }
     const account = await prisma.account.create({
       data: {
         companyId: company.id,
@@ -276,7 +331,11 @@ router.patch('/:id', async (req, res) => {
   }
 
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompany(req);
+    if (!company) {
+      res.status(503).json({ error: 'Company unavailable' });
+      return;
+    }
     const existing = await prisma.account.findFirst({
       where: { id: req.params.id, companyId: company.id },
     });

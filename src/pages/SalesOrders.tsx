@@ -100,11 +100,14 @@ export function SalesOrders() {
       window.alert('Add at least one line with a description.');
       return;
     }
-    const res = await api.createSalesOrder({
-      customerId,
-      notes: notes.trim() || undefined,
-      lines: built,
-    });
+    const res = await api.createSalesOrder(
+      {
+        customerId,
+        notes: notes.trim() || undefined,
+        lines: built,
+      },
+      { idempotencyKey: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `so-${Date.now()}` }
+    );
     if (!res.success) {
       window.alert(res.error ?? 'Create failed');
       return;
