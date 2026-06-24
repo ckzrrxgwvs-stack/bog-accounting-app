@@ -99,7 +99,11 @@ export function MainLayout() {
   const { manualOperationsMode, loading: policyLoading } = useCompanyPolicy();
   const serverMode = useServerMode();
   const logoStatus =
-    serverMode === 'database' ? 'active' : serverMode === 'loading' ? 'syncing' : 'demo';
+    serverMode === 'database'
+      ? 'active'
+      : serverMode === 'loading' || serverMode === 'schema_pending'
+        ? 'syncing'
+        : 'demo';
 
   const isExecutive = Boolean(
     user && (user.role === 'PRESIDENT' || user.role === 'CFO' || user.role === 'CONTROLLER')
@@ -237,6 +241,12 @@ export function MainLayout() {
         </header>
 
         <main className="min-h-[calc(100vh-3.5rem)] lg:min-h-screen">
+          {serverMode === 'schema_pending' && (
+            <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
+              Database connected — applying schema on API startup. Wait ~1 min, then click <strong>Refresh</strong> on
+              Chart of accounts. If it persists, redeploy Render service <code className="font-mono">bog-accounting-api</code>.
+            </div>
+          )}
           {serverMode === 'offline' && (
             <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
               API offline — showing browser demo data. Run <code className="font-mono">pnpm run dev:program</code> for

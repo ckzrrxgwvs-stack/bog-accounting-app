@@ -85,6 +85,14 @@ export const useAuthStore = create<AuthState>()(
             return;
           }
 
+          if (import.meta.env.VITE_API_URL) {
+            set({ isLoading: false });
+            throw new Error(
+              apiRes.error ??
+                'Server login failed. Redeploy bog-accounting-api on Render (database tables not ready yet).'
+            );
+          }
+
           const users = localDataService.getUsers();
           const foundUser = users.find(
             (u) => u.email.toLowerCase() === email.toLowerCase() && u.passwordHash === password

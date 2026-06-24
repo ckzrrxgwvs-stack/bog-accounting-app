@@ -89,7 +89,7 @@ class ApiClient {
   }
 
   async getHealth() {
-    return this.request<{ status: string; timestamp: string; openai: boolean; database: boolean; mock?: boolean }>(
+    return this.request<{ status: string; timestamp: string; openai: boolean; database: boolean; mock?: boolean; schemaReady?: boolean }>(
       '/health'
     );
   }

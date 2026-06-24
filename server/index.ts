@@ -33,6 +33,8 @@ import { agentOrgRouter } from './routes/agentOrg';
 import { shopifyConnectorRouter } from './routes/shopifyConnector';
 import { useDatabase } from './lib/dbMode';
 import { ensureProgramBootstrap } from './services/ensureProgramBootstrap';
+import { ensureDatabaseSchema, isSchemaReady } from './services/ensureDatabaseSchema';
+import { setupRouter } from './routes/setup';
 
 config({ override: true });
 // start:mock sets BOG_MOCK=1 before dotenv; keep mock mode even if .env has DATABASE_URL
@@ -100,14 +102,27 @@ app.use('/api/logistics', logisticsRouter);
 app.use('/api/product-intel', productIntelRouter);
 app.use('/api/agent-org', agentOrgRouter);
 app.use('/api/connectors/shopify', shopifyConnectorRouter);
+app.use('/api/setup', setupRouter);
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (_req, res) => {
+  let dbPing = false;
+  if (useDatabase()) {
+    try {
+      const { prisma } = await import('./lib/prisma');
+      await prisma.$queryRaw`SELECT 1`;
+      dbPing = true;
+    } catch {
+      dbPing = false;
+    }
+  }
+
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     openai: !!process.env.OPENAI_API_KEY,
-    database: useDatabase(),
+    database: useDatabase() && dbPing,
+    schemaReady: isSchemaReady(),
     mock: process.env.BOG_MOCK === '1' || process.env.BOG_MOCK === 'true',
   });
 });
@@ -127,9 +142,10 @@ app.listen(PORT, async () => {
   if (useDatabase()) {
     console.log('   📦 Database mode (DATABASE_URL set)');
     try {
+      await ensureDatabaseSchema();
       await ensureProgramBootstrap();
     } catch (e) {
-      console.error('   ⚠️  Bootstrap failed:', e instanceof Error ? e.message : e);
+      console.error('   ⚠️  Startup DB setup failed:', e instanceof Error ? e.message : e);
     }
   } else {
     console.log('   🧪 Mock mode (in-memory books — store + Investment SMA)');

@@ -123,6 +123,14 @@ router.get('/reports/trial-balance', async (req, res) => {
     });
   } catch (e) {
     console.error(e);
+    const code = e && typeof e === 'object' && 'code' in e ? String((e as { code: string }).code) : '';
+    if (code === 'P2021' || code.startsWith('P20')) {
+      res.status(503).json({
+        error: 'Database schema not applied',
+        hint: 'Redeploy the API server or wait for startup schema sync.',
+      });
+      return;
+    }
     res.status(503).json({ error: 'Database unavailable' });
   }
 });

@@ -40,7 +40,16 @@ Repo: `https://github.com/ckzrrxgwvs-stack/bog-accounting-app`
 curl -s https://bog-accounting-api.onrender.com/api/health
 ```
 
-Expect: `"database": true`, `"status": "healthy"`
+Expect: `"database": true`, `"schemaReady": true`
+
+**If accounts still empty after deploy** — one-time init (Render → Environment → copy `AGENT_ORG_CRON_SECRET`):
+
+```bash
+curl -X POST https://bog-accounting-api.onrender.com/api/setup/init \
+  -H "x-agent-org-secret: YOUR_AGENT_ORG_CRON_SECRET"
+```
+
+Expect: `"accountCount": 16` (or similar), `"userCount": 4`
 
 **First login** (auto-seeded on empty DB):
 
