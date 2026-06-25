@@ -87,9 +87,23 @@ export const useAuthStore = create<AuthState>()(
 
           if (import.meta.env.VITE_API_URL) {
             set({ isLoading: false });
+            const health = await api.getHealth();
+            const h = health.data as { database?: boolean; schemaReady?: boolean } | undefined;
+            if (!h?.database) {
+              throw new Error(
+                'BOG cannot reach the database on the server. In Render → bog-accounting-api → Environment, set DATABASE_URL to your full Supabase URI, then redeploy.'
+              );
+            }
+            if (h.database && h.schemaReady === false) {
+              throw new Error(
+                'Database connected but tables are not ready yet. In Render, redeploy bog-accounting-api and wait 2–3 minutes, then try again.'
+              );
+            }
             throw new Error(
-              apiRes.error ??
-                'Server login failed. Redeploy bog-accounting-api on Render (database tables not ready yet).'
+              apiRes.error === 'Login failed'
+                ? 'Invalid email or password, or user not seeded yet. Try admin@company.com / demo123 after API redeploy.'
+                : (apiRes.error ??
+                    'Server login failed. Check Render logs for bog-accounting-api.')
             );
           }
 

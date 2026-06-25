@@ -7,6 +7,8 @@ import { api } from '@/services/api';
 import { Mail, Lock, Eye, EyeOff, Shield, Sparkles, ArrowRight, Check, KeyRound } from 'lucide-react';
 import { CubeLogoMark } from '@/components/Logo';
 
+const isProductionApi = Boolean(import.meta.env.VITE_API_URL);
+
 export function Login() {
   const navigate = useNavigate();
   const { login, verifyMFA, isLoading, mfaRequired } = useAuthStore();
@@ -27,8 +29,9 @@ export function Login() {
 
     try {
       await login(email, password);
+      navigate('/');
     } catch (err) {
-      setError('Invalid email or password');
+      setError(err instanceof Error ? err.message : 'Invalid email or password');
     }
   };
 
@@ -165,7 +168,8 @@ export function Login() {
             <p className="text-gray-500">Books On The Go — sign in to your ledger</p>
           </div>
 
-          {/* Demo Mode Banner */}
+          {/* Demo Mode Banner — local dev only */}
+          {!isProductionApi && (
           <div className="mb-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl border border-amber-100">
             <div className="flex items-center">
               <div className="p-2 bg-amber-100 rounded-xl mr-3">
@@ -177,6 +181,15 @@ export function Login() {
               </div>
             </div>
           </div>
+          )}
+          {isProductionApi && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-sky-50 to-blue-50 rounded-2xl border border-sky-100">
+            <p className="font-semibold text-sky-900 text-sm">Production sign-in</p>
+            <p className="text-xs text-sky-700 mt-1">
+              Use <strong>admin@company.com</strong> / <strong>demo123</strong> after the API database is configured on Render.
+            </p>
+          </div>
+          )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>

@@ -76,7 +76,12 @@ router.post('/login', async (req, res) => {
     });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: 'Login failed' });
+    const msg = e instanceof Error ? e.message : 'Login failed';
+    if (!useDatabase()) {
+      res.status(503).json({ error: 'DATABASE_URL not configured on API server' });
+      return;
+    }
+    res.status(500).json({ error: 'Login failed', hint: msg.slice(0, 200) });
   }
 });
 
