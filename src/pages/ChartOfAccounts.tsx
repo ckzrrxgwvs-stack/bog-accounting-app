@@ -1,8 +1,16 @@
 // Module 1 — Chart of accounts (GAAP foundation); reads/writes via API when configured.
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Pencil, Plus, RefreshCw, Search } from 'lucide-react';
 import api from '@/services/api';
+import {
+  apiBookForLedger,
+  LEDGER_BOOK_OPTIONS,
+  ledgerBookMeta,
+  ledgerFromSearchParam,
+  type LedgerSwitcherKey,
+} from '@/lib/ledgerBooks';
 import {
   ModuleWorkspace,
   ledgerTableShell,
@@ -29,6 +37,12 @@ const controlClass =
   'rounded-lg border border-bog-rule bg-white px-3 py-2 text-sm text-bog-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--bog-accent))]/25';
 
 export function ChartOfAccounts() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const ledger = ledgerFromSearchParam(searchParams.get('ledger'));
+  const ledgerMeta = ledgerBookMeta(ledger);
+  const apiBook = apiBookForLedger(ledger);
+  const isInvestmentLedger = ledgerMeta.isInvestment;
+
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +64,7 @@ export function ChartOfAccounts() {
     setLoading(true);
     setError(null);
     const res = await api.getAccounts({
+      book: apiBook,
       type: typeFilter || undefined,
       search: search.trim() || undefined,
       includeInactive,
@@ -63,13 +78,18 @@ export function ChartOfAccounts() {
     const payload = res.data as { accounts?: AccountRow[] };
     setAccounts(Array.isArray(payload?.accounts) ? payload.accounts : []);
     setLoading(false);
-  }, [search, typeFilter, includeInactive]);
+  }, [apiBook, search, typeFilter, includeInactive]);
 
   useEffect(() => {
     void load();
-    // Initial load only; filters apply via "Apply" / "Refresh"
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
+
+  const setLedger = (key: LedgerSwitcherKey) => {
+    const next = new URLSearchParams(searchParams);
+    if (key === 'commerce') next.delete('ledger');
+    else next.set('ledger', key);
+    setSearchParams(next, { replace: true });
+  };
 
   const openEdit = (a: AccountRow) => {
     setEditing(a);
@@ -102,11 +122,14 @@ export function ChartOfAccounts() {
     e.preventDefault();
     if (!newCode.trim() || !newName.trim()) return;
     setSaving(true);
-    const res = await api.createAccount({
-      code: newCode.trim(),
-      name: newName.trim(),
-      type: newType,
-    });
+    const res = await api.createAccount(
+      {
+        code: newCode.trim(),
+        name: newName.trim(),
+        type: newType,
+      },
+      apiBook ? { book: apiBook } : undefined
+    );
     setSaving(false);
     if (!res.success) {
       setError(res.error ?? 'Could not create account');
@@ -123,7 +146,11 @@ export function ChartOfAccounts() {
     <ModuleWorkspace
       label="General ledger"
       title="Chart of accounts"
-      description="Foundation for GAAP workflows: account numbers, names, and types. Balances roll up from posted activity in later modules."
+      description={
+        isInvestmentLedger
+          ? `${ledgerMeta.subtitle} — investment ledger. Balances from imported Robinhood activity and posted journals.`
+          : 'Foundation for GAAP workflows: account numbers, names, and types. Balances roll up from posted activity in later modules.'
+      }
       actions={
         <>
           <button
@@ -134,17 +161,44 @@ export function ChartOfAccounts() {
             <RefreshCw size={16} />
             Refresh
           </button>
-          <button
-            type="button"
-            onClick={() => setShowAdd(true)}
-            className="inline-flex items-center rounded-lg bg-bog-ink px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800"
-          >
-            <Plus size={18} className="mr-2" />
-            Add account
-          </button>
+          {!isInvestmentLedger && (
+            <button
+              type="button"
+              onClick={() => setShowAdd(true)}
+              className="inline-flex items-center rounded-lg bg-bog-ink px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-zinc-800"
+            >
+              <Plus size={18} className="mr-2" />
+              Add account
+            </button>
+          )}
         </>
       }
     >
+      <div className="mb-6">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">Ledger</p>
+        <div className="flex flex-wrap gap-2">
+          {LEDGER_BOOK_OPTIONS.map((book) => {
+            const active = ledger === book.key;
+            return (
+              <button
+                key={book.key}
+                type="button"
+                onClick={() => setLedger(book.key)}
+                className={`rounded-xl border px-4 py-2.5 text-left transition-colors ${
+                  active
+                    ? 'border-bog-ink bg-bog-ink text-white shadow-sm'
+                    : 'border-bog-rule bg-white text-bog-ink hover:bg-bog-sheet'
+                }`}
+              >
+                <span className="block text-sm font-semibold">{book.label}</span>
+                <span className={`block text-xs ${active ? 'text-white/80' : 'text-zinc-500'}`}>
+                  {book.subtitle}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
       {error && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {error}

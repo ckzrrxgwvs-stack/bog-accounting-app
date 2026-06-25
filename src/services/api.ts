@@ -379,8 +379,14 @@ class ApiClient {
   }
 
   // Accounts
-  async getAccounts(filters?: { type?: string; search?: string; includeInactive?: boolean }) {
+  async getAccounts(filters?: {
+    book?: string;
+    type?: string;
+    search?: string;
+    includeInactive?: boolean;
+  }) {
     const params = new URLSearchParams();
+    if (filters?.book) params.set('book', filters.book);
     if (filters?.type) params.set('type', filters.type);
     if (filters?.search) params.set('search', filters.search);
     if (filters?.includeInactive) params.set('includeInactive', '1');
@@ -392,8 +398,9 @@ class ApiClient {
     return this.request(`/accounts/${id}`);
   }
 
-  async createAccount(data: any) {
-    return this.request('/accounts', { method: 'POST', body: data });
+  async createAccount(data: Record<string, unknown>, opts?: { book?: string }) {
+    const qs = opts?.book ? `?book=${encodeURIComponent(opts.book)}` : '';
+    return this.request(`/accounts${qs}`, { method: 'POST', body: data });
   }
 
   async updateAccount(id: string, data: Record<string, unknown>) {
