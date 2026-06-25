@@ -31,6 +31,7 @@ import { logisticsRouter } from './routes/logistics';
 import { productIntelRouter } from './routes/productIntel';
 import { agentOrgRouter } from './routes/agentOrg';
 import { shopifyConnectorRouter } from './routes/shopifyConnector';
+import { robinhoodConnectorRouter } from './routes/robinhoodConnector';
 import { useDatabase } from './lib/dbMode';
 import { applyDatabaseUrlEnv } from './lib/databaseUrl';
 import { ensureProgramBootstrap } from './services/ensureProgramBootstrap';
@@ -68,7 +69,7 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 app.use(express.json({
-  limit: '512kb',
+  limit: '2mb',
   verify: (req, _res, buf) => {
     if (req.originalUrl?.startsWith('/api/connectors/shopify/webhook')) {
       (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
@@ -103,6 +104,7 @@ app.use('/api/logistics', logisticsRouter);
 app.use('/api/product-intel', productIntelRouter);
 app.use('/api/agent-org', agentOrgRouter);
 app.use('/api/connectors/shopify', shopifyConnectorRouter);
+app.use('/api/connectors/robinhood', robinhoodConnectorRouter);
 app.use('/api/setup', setupRouter);
 
 // Health check
