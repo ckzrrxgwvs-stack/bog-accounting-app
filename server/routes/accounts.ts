@@ -4,7 +4,13 @@ import { Router } from 'express';
 import { AccountType, AuditAction } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
-import { getOrCreateInvestmentSmaCompany } from '../services/investmentSmaBootstrap';
+import {
+  getOrCreateInvestmentCompany,
+  investmentCoaForBook,
+  INVESTMENT_BOOKS,
+  resolveInvestmentBookFromQuery,
+  type InvestmentBookId,
+} from '../services/investmentBooks';
 import { aggregatePostedJournalThrough, signedBalanceForAccount } from '../services/journalAggregates';
 import { writeAuditLog } from '../services/auditLog';
 
@@ -27,40 +33,39 @@ let mockAccounts: {
   { id: '5', code: '5100', name: 'Cost of Goods Sold', type: 'COST_OF_GOODS_SOLD', balance: 0, isActive: true, allowPosting: true },
 ];
 
-/** Separate mock book for investment-fund-crew (not store). */
-let mockInvestmentAccounts: {
-  id: string;
-  code: string;
-  name: string;
-  type: string;
-  balance: number;
-  isActive?: boolean;
-  allowPosting?: boolean;
-}[] = [
-  { id: 'inv-1', code: '1200', name: 'Cash — Investment Brokerage (Agentic)', type: 'ASSET', balance: 0, isActive: true, allowPosting: true },
-  { id: 'inv-2', code: '1210', name: 'Securities at cost', type: 'ASSET', balance: 0, isActive: true, allowPosting: true },
-  { id: 'inv-3', code: '1211', name: 'Unrealized gain on securities', type: 'ASSET', balance: 0, isActive: true, allowPosting: true },
-  { id: 'inv-4', code: '1212', name: 'Unrealized loss on securities', type: 'ASSET', balance: 0, isActive: true, allowPosting: true },
-  { id: 'inv-5', code: '4500', name: 'Dividend income', type: 'REVENUE', balance: 0, isActive: true, allowPosting: true },
-  { id: 'inv-6', code: '4610', name: 'Realized gain on securities', type: 'REVENUE', balance: 0, isActive: true, allowPosting: true },
-  { id: 'inv-7', code: '4611', name: 'Realized loss on securities', type: 'EXPENSE', balance: 0, isActive: true, allowPosting: true },
-  { id: 'inv-8', code: '6310', name: 'Brokerage commissions & fees', type: 'EXPENSE', balance: 0, isActive: true, allowPosting: true },
-];
+function mockInvestmentAccounts(bookId: InvestmentBookId, prefix: string) {
+  return investmentCoaForBook(bookId).map((row, i) => ({
+    id: `${prefix}-${i + 1}`,
+    code: row.code,
+    name: row.name,
+    type: row.type,
+    balance: 0,
+    isActive: true,
+    allowPosting: true,
+  }));
+}
 
-function isInvestmentBook(req: { query: Record<string, unknown> }): boolean {
-  return req.query.book === 'investment_sma';
+const mockInvestmentSmaAccounts = mockInvestmentAccounts('investment_sma', 'inv-sma');
+const mockInvestmentPersonalAccounts = mockInvestmentAccounts('investment_personal', 'inv-personal');
+
+function investmentBookId(req: { query: Record<string, unknown> }): InvestmentBookId | null {
+  return resolveInvestmentBookFromQuery(req.query.book);
 }
 
 async function resolveCompany(req: { query: Record<string, unknown> }) {
-  if (isInvestmentBook(req)) {
-    if (!useDatabase()) return null; // GET / uses mockInvestmentAccounts directly
-    return getOrCreateInvestmentSmaCompany();
+  const book = investmentBookId(req);
+  if (book) {
+    if (!useDatabase()) return null;
+    return getOrCreateInvestmentCompany(book);
   }
   return getOrCreateDefaultCompany();
 }
 
 function mockListForBook(req: { query: Record<string, unknown> }) {
-  return isInvestmentBook(req) ? [...mockInvestmentAccounts] : [...mockAccounts];
+  const book = investmentBookId(req);
+  if (book === 'investment_personal') return [...mockInvestmentPersonalAccounts];
+  if (book === 'investment_sma') return [...mockInvestmentSmaAccounts];
+  return [...mockAccounts];
 }
 
 function useDatabase(): boolean {
@@ -68,6 +73,20 @@ function useDatabase(): boolean {
 }
 
 const accountTypes = new Set<string>(Object.values(AccountType));
+
+// Static paths before /:id
+router.get('/investment-books', async (_req, res) => {
+  res.json({
+    books: Object.values(INVESTMENT_BOOKS).map((b) => ({
+      bookId: b.bookId,
+      companyName: b.companyName,
+      legalName: b.legalName,
+      robinhoodAccountMask: b.robinhoodAccountMask,
+      journalSourceType: b.journalSourceType,
+      apiQuery: `?book=${b.bookId}`,
+    })),
+  });
+});
 
 // Static paths before /:id
 router.get('/reports/trial-balance', async (req, res) => {

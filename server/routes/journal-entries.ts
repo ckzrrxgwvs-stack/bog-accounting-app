@@ -3,8 +3,10 @@ import { EntryStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { useDatabase } from '../lib/dbMode';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
-import { getOrCreateInvestmentSmaCompany } from '../services/investmentSmaBootstrap';
-import { getOrCreateInvestmentSmaCompany } from '../services/investmentSmaBootstrap';
+import {
+  getOrCreateInvestmentCompany,
+  resolveInvestmentBookFromSourceType,
+} from '../services/investmentBooks';
 import { dec } from '../lib/serialize';
 import { assertPeriodOpen } from '../services/periodClose';
 import { createLedgerEntriesForJournal } from '../services/ledgerFromJournal';
@@ -154,10 +156,10 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    const company =
-      body.sourceType === 'investment_fund_crew'
-        ? await getOrCreateInvestmentSmaCompany()
-        : await getOrCreateDefaultCompany();
+    const investmentBook = resolveInvestmentBookFromSourceType(body.sourceType);
+    const company = investmentBook
+      ? await getOrCreateInvestmentCompany(investmentBook)
+      : await getOrCreateDefaultCompany();
     const linesIn = Array.isArray(body.lines) ? body.lines : [];
     let debitSum = 0;
     let creditSum = 0;

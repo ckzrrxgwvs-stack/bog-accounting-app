@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { UserRoleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { getOrCreateDefaultCompany } from './companyBootstrap';
+import { ensureAllInvestmentBooks } from './investmentBooks';
 import { useDatabase } from '../lib/dbMode';
 
 const DEMO_PASSWORD = process.env.BOG_BOOTSTRAP_PASSWORD?.trim() || 'demo123';
@@ -62,6 +63,10 @@ export async function ensureProgramBootstrap(options?: { force?: boolean }): Pro
     }
 
     console.log(`   ✓ Program bootstrap: ${USERS.length} demo users ready`);
+
+    await ensureAllInvestmentBooks();
+    console.log('   ✓ Investment books ready (Agentic ••••2117 + Personal ••••2686)');
+
     bootstrapped = true;
   } catch (e) {
     bootstrapped = false;
