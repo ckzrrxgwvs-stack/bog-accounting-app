@@ -2,6 +2,13 @@
 import dotenv from "dotenv";
 dotenv.config({ override: true });
 
+import { normalizeDatabaseUrl } from "./server/lib/databaseUrl";
+
+const databaseUrl = normalizeDatabaseUrl(process.env["DATABASE_URL"]);
+if (databaseUrl) {
+  process.env["DATABASE_URL"] = databaseUrl;
+}
+
 import { defineConfig } from "prisma/config";
 
 export default defineConfig({

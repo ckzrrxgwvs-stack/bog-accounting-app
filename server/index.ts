@@ -32,6 +32,7 @@ import { productIntelRouter } from './routes/productIntel';
 import { agentOrgRouter } from './routes/agentOrg';
 import { shopifyConnectorRouter } from './routes/shopifyConnector';
 import { useDatabase } from './lib/dbMode';
+import { applyDatabaseUrlEnv } from './lib/databaseUrl';
 import { ensureProgramBootstrap } from './services/ensureProgramBootstrap';
 import { ensureDatabaseSchema, isSchemaReady } from './services/ensureDatabaseSchema';
 import { setupRouter } from './routes/setup';
@@ -141,6 +142,7 @@ app.listen(PORT, async () => {
   console.log(`   Health check: http://localhost:${PORT}/api/health`);
   if (useDatabase()) {
     console.log('   📦 Database mode (DATABASE_URL set)');
+    applyDatabaseUrlEnv();
     try {
       await ensureDatabaseSchema();
       await ensureProgramBootstrap();
