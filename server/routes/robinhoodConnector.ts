@@ -3,6 +3,7 @@
  */
 import { Router } from 'express';
 import { databaseConfigured } from '../lib/dbMode';
+import { requireAuthRoles } from '../middleware/requireAuthRoles';
 import {
   importRobinhoodEquityOrders,
   investmentBookForRobinhoodMask,
@@ -18,6 +19,20 @@ function secretOk(req: { headers: Record<string, unknown> }): boolean {
   return typeof header === 'string' && header === secret;
 }
 
+const allowPresidentOrCfo = requireAuthRoles('PRESIDENT', 'CFO');
+
+function backfillAuth(
+  req: Parameters<typeof allowPresidentOrCfo>[0],
+  res: Parameters<typeof allowPresidentOrCfo>[1],
+  next: Parameters<typeof allowPresidentOrCfo>[2]
+): void {
+  if (secretOk(req)) {
+    next();
+    return;
+  }
+  allowPresidentOrCfo(req, res, next);
+}
+
 router.use((_req, res, next) => {
   if (!databaseConfigured()) {
     res.status(503).json({ error: 'Database required for Robinhood connector' });
@@ -30,12 +45,7 @@ router.use((_req, res, next) => {
  * POST /api/connectors/robinhood/backfill-equity
  * Body: { account_mask: "2686", orders: [...] }  — filled equity orders from get_equity_orders
  */
-router.post('/backfill-equity', async (req, res) => {
-  if (!secretOk(req)) {
-    res.status(401).json({ error: 'Invalid or missing x-agent-org-secret' });
-    return;
-  }
-
+router.post('/backfill-equity', backfillAuth, async (req, res) => {
   const mask = typeof req.body?.account_mask === 'string' ? req.body.account_mask.trim() : '';
   const bookId = investmentBookForRobinhoodMask(mask);
   if (!bookId) {
