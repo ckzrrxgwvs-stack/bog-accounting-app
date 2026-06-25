@@ -108,11 +108,15 @@ app.use('/api/setup', setupRouter);
 // Health check
 app.get('/api/health', async (_req, res) => {
   let dbPing = false;
+  let userCount: number | undefined;
   if (useDatabase()) {
     try {
       const { prisma } = await import('./lib/prisma');
       await prisma.$queryRaw`SELECT 1`;
       dbPing = true;
+      if (isSchemaReady()) {
+        userCount = await prisma.user.count();
+      }
     } catch {
       dbPing = false;
     }
@@ -124,6 +128,7 @@ app.get('/api/health', async (_req, res) => {
     openai: !!process.env.OPENAI_API_KEY,
     database: useDatabase() && dbPing,
     schemaReady: isSchemaReady(),
+    userCount,
     mock: process.env.BOG_MOCK === '1' || process.env.BOG_MOCK === 'true',
   });
 });
@@ -137,24 +142,28 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   });
 });
 
-app.listen(PORT, async () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`   Health check: http://localhost:${PORT}/api/health`);
+async function startServer(): Promise<void> {
   if (useDatabase()) {
     console.log('   📦 Database mode (DATABASE_URL set)');
     applyDatabaseUrlEnv();
-    try {
-      await ensureDatabaseSchema();
-      await ensureProgramBootstrap();
-    } catch (e) {
-      console.error('   ⚠️  Startup DB setup failed:', e instanceof Error ? e.message : e);
-    }
+    await ensureDatabaseSchema();
+    await ensureProgramBootstrap();
   } else {
     console.log('   🧪 Mock mode (in-memory books — store + Investment SMA)');
   }
-  if (!process.env.OPENAI_API_KEY) {
-    console.log('   ⚠️  Warning: OPENAI_API_KEY not set - AI CPA will run in demo mode');
-  }
+
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`   Health check: http://localhost:${PORT}/api/health`);
+    if (!process.env.OPENAI_API_KEY) {
+      console.log('   ⚠️  Warning: OPENAI_API_KEY not set - AI CPA will run in demo mode');
+    }
+  });
+}
+
+startServer().catch((e) => {
+  console.error('Fatal startup error:', e instanceof Error ? e.message : e);
+  process.exit(1);
 });
 
 export default app;

@@ -29,7 +29,7 @@ router.post('/init', async (req, res) => {
 
   try {
     await ensureDatabaseSchema();
-    await ensureProgramBootstrap();
+    await ensureProgramBootstrap({ force: true });
     const [companyCount, accountCount, userCount] = await Promise.all([
       prisma.company.count(),
       prisma.account.count(),

@@ -21,8 +21,9 @@ const USERS: {
 let bootstrapped = false;
 
 /** Ensure company, COA, and demo users exist (upsert — safe on every deploy). */
-export async function ensureProgramBootstrap(): Promise<void> {
-  if (!useDatabase() || bootstrapped) return;
+export async function ensureProgramBootstrap(options?: { force?: boolean }): Promise<void> {
+  if (!useDatabase()) return;
+  if (bootstrapped && !options?.force) return;
 
   try {
     const company = await getOrCreateDefaultCompany();
@@ -63,6 +64,7 @@ export async function ensureProgramBootstrap(): Promise<void> {
     console.log(`   ✓ Program bootstrap: ${USERS.length} demo users ready`);
     bootstrapped = true;
   } catch (e) {
+    bootstrapped = false;
     console.error('   ⚠️  Program bootstrap failed:', e instanceof Error ? e.message : e);
     throw e;
   }
