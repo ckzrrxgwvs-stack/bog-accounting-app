@@ -1,7 +1,8 @@
-// Zustand store for AI CPA chat
+// Zustand store for AI CPA chat — calls production API (not mock loop).
 
 import { create } from 'zustand';
 import type { ChatMessage, ChatSession } from '@/types';
+import api from '@/services/api';
 
 interface AIState {
   sessions: ChatSession[];
@@ -10,7 +11,6 @@ interface AIState {
   isLoading: boolean;
   isTyping: boolean;
 
-  // Actions
   createSession: () => void;
   selectSession: (sessionId: string) => void;
   sendMessage: (content: string) => Promise<void>;
@@ -69,34 +69,49 @@ export const useAIStore = create<AIState>((set, get) => ({
       isTyping: true,
     }));
 
-    // Simulate AI response (in production, this would call OpenAI API)
-    setTimeout(() => {
+    const res = await api.sendAIMessage(content);
+
+    if (!res.success) {
+      const err = res.error ?? 'AI request failed';
       const aiResponse: ChatMessage = {
         id: `msg-${Date.now()}-ai`,
         sessionId: get().currentSession?.id || '',
         role: 'ASSISTANT',
-        content: `I understand you're asking about: "${content}"
-
-As your AI CPA Assistant, I can help you with:
-
-• Financial analysis and reporting
-• Account inquiries and transactions
-• Accounts Payable and Receivable management
-• Budget comparisons and forecasting
-• Tax and compliance questions
-
-Please ask any specific question about your company's financial data, and I'll provide detailed, professional insights based on your accounting records.`,
-        model: 'gpt-4',
-        tokens: content.length * 2,
-        latency: Math.floor(Math.random() * 1000) + 500,
+        content:
+          err.includes('MANUAL') || err.includes('manual')
+            ? 'AI CPA is disabled while manual operations mode is on.'
+            : err,
         createdAt: new Date(),
       };
-
       set((state) => ({
         messages: [...state.messages, aiResponse],
         isTyping: false,
       }));
-    }, 1500);
+      return;
+    }
+
+    const payload = res.data as {
+      response?: string;
+      model?: string;
+      tokens?: number;
+      latency?: number;
+    };
+
+    const aiResponse: ChatMessage = {
+      id: `msg-${Date.now()}-ai`,
+      sessionId: get().currentSession?.id || '',
+      role: 'ASSISTANT',
+      content: payload.response ?? 'No response from AI service.',
+      model: payload.model,
+      tokens: payload.tokens,
+      latency: payload.latency,
+      createdAt: new Date(),
+    };
+
+    set((state) => ({
+      messages: [...state.messages, aiResponse],
+      isTyping: false,
+    }));
   },
 
   clearMessages: () => {

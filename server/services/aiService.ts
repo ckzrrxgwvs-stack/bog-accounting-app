@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import type { Request, Response } from 'express';
 import { isManualOperationsModeActive } from '../lib/manualOperationsGate';
 import { getOrCreateDefaultCompany } from './companyBootstrap';
+import { buildFinancialSnapshot } from './aiFinancialSnapshot';
 import {
   formatRecentAiMemoriesForPrompt,
   recordAiTenantMemoryIfEnabled,
@@ -14,61 +15,23 @@ const openai = new OpenAI({
 });
 
 const isDemoMode = !process.env.OPENAI_API_KEY;
+const AI_MODEL = process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini';
 
-// System prompt for the AI CPA
-const SYSTEM_PROMPT = `You are an AI CPA Assistant for a professional accounting system. You help users with:
+const SYSTEM_PROMPT = `You are the **AI CPA Assistant** for BOG (Books On The Go) — a professional accounting program.
 
-1. Financial Analysis - Analyzing revenue, expenses, profitability
-2. Accounting Questions - Explaining accounting concepts, GAAP principles
-3. Transaction Lookups - Finding specific transactions, invoices, journal entries
-4. Report Generation - Explaining and summarizing financial reports
-5. Budget Analysis - Comparing actual vs budget, explaining variances
-6. Accounts Payable/Receivable - Status of payments, outstanding invoices
-7. Compliance - Tax questions, regulatory requirements for USA and Mexico
+**Your job:** Answer with **concrete numbers** from the FINANCIAL SNAPSHOT block below. Do not give generic "I can help with…" loops.
 
-You have access to the company's accounting data and can provide specific,
-accurate information based on the actual data. Always be professional,
-concise, and helpful.
+**Report requests** (income statement, P&L, trial balance, balance sheet, cash flow, revenue, expenses, AR/AP):
+1. Pull figures directly from the snapshot (MTD/YTD revenue, COGS, expenses, net income, account balances).
+2. Present as a short markdown table or bullet list with dollar amounts.
+3. Name the ledger: Commerce (store) vs Investment Personal (Robinhood ••••2686) vs Investment Agentic (••••2117) when relevant.
+4. Only say data is unavailable if the snapshot explicitly shows zeros or says unavailable — then tell the user which app screen to open (Chart of accounts, Reports, Journal entries).
 
-When answering questions:
-- Be specific with numbers and dates when available
-- Explain accounting concepts clearly for non-experts
-- Suggest actions when appropriate (e.g., "Consider collecting this overdue invoice")
-- Flag potential issues (e.g., "This invoice is 60+ days overdue")
+**Tone:** Professional CPA, concise, no filler paragraphs.
 
-Current company context:
-- Country: USA and Mexico support
-- Currency: USD and MXN
-- Fiscal Year: January to December
-- Industry: General business accounting
+**Compliance:** Educational framing only — not investment advice. USA GAAP baseline; note when Mexico/CFDI rules may differ.
 
-If you don't have specific data, explain the general principle and suggest
-how to find the information in the system.`;
-
-// Demo responses for when OpenAI API is not configured
-const demoResponses = [
-  `Based on your accounting records, I can see your revenue trends are positive this month.
-
-Key insights:
-• Revenue: $124,500 (up 12.5% from last month)
-• Expenses: $89,200 (down 3.2% from last month)
-• Net Income: $35,300 (up 18.7% from last month)
-
-Would you like me to generate a detailed financial report?`,
-
-  `Looking at your Accounts Receivable aging:
-• Current: $18,500 (on track)
-• 31-60 days: $12,300 (needs attention)
-• 60+ days: $4,200 (follow-up recommended)
-
-I recommend prioritizing collection on the 60+ day invoices. Would you like me to show you the specific customer accounts?`,
-
-  `For your Accounts Payable this week:
-• Due: $450 (Electric Company)
-• Approved and ready to pay: $3,500
-
-You have sufficient cash balance ($52,800) to cover all outstanding payments. Take advantage of early payment discounts where available.`,
-];
+**Never:** Invent invoice numbers, balances, or transactions not in the snapshot.`;
 
 export async function chatWithAI(
   userMessage: string,
@@ -76,59 +39,55 @@ export async function chatWithAI(
     companyId?: string;
     userRole?: string;
     period?: string;
-    /** Tenant retrieval memory — appended to system instructions only */
     extraSystemPrompt?: string;
   }
 ): Promise<{ response: string; model?: string; tokens?: number; latency: number }> {
   const startTime = Date.now();
 
-  const systemContent =
-    context?.extraSystemPrompt && context.extraSystemPrompt.trim().length > 0
-      ? `${SYSTEM_PROMPT}\n\n${context.extraSystemPrompt}`
-      : SYSTEM_PROMPT;
+  const snapshot = await buildFinancialSnapshot();
+  const systemContent = [SYSTEM_PROMPT, snapshot, context?.extraSystemPrompt?.trim()]
+    .filter(Boolean)
+    .join('\n\n');
 
   if (isDemoMode) {
-    // Return demo response
-    const demoIndex = Math.floor(Math.random() * demoResponses.length);
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
-
+    await new Promise((resolve) => setTimeout(resolve, 800));
     return {
-      response: demoResponses[demoIndex],
-      model: 'demo',
+      response: `**Demo mode** — set \`OPENAI_API_KEY\` on Render for full AI. Below is your **live snapshot** from the database:\n\n${snapshot}\n\n---\n**Your question:** ${userMessage}\n\n_Open the **Reports** menu for printable trial balance, income statement, and balance sheet._`,
+      model: 'demo+snapshot',
       latency: Date.now() - startTime,
     };
   }
 
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: AI_MODEL,
       messages: [
         { role: 'system', content: systemContent },
         { role: 'user', content: userMessage },
       ],
-      max_tokens: 1000,
-      temperature: 0.7,
+      max_tokens: 1400,
+      temperature: 0.35,
     });
 
-    const response = completion.choices[0]?.message?.content || 'I apologize, I could not generate a response.';
+    const response = completion.choices[0]?.message?.content || 'I could not generate a response.';
     const tokens = completion.usage?.total_tokens;
 
     return {
       response,
-      model: 'gpt-4o',
+      model: AI_MODEL,
       tokens,
       latency: Date.now() - startTime,
     };
   } catch (error) {
     console.error('OpenAI API Error:', error);
+    const msg = error instanceof Error ? error.message : 'Unknown error';
     return {
-      response: 'I apologize, but I encountered an error processing your request. Please try again.',
+      response: `AI service error: ${msg.slice(0, 200)}. Your snapshot is still available in Reports. Check OPENAI_API_KEY and billing on the OpenAI platform.`,
       latency: Date.now() - startTime,
     };
   }
 }
 
-// API endpoint handler
 export async function handleAIRequest(req: Request, res: Response) {
   try {
     if (await isManualOperationsModeActive()) {

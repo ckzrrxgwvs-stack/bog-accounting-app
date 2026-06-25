@@ -552,8 +552,18 @@ class ApiClient {
   }
 
   // AI CPA
-  async sendAIMessage(message: string, context?: any) {
-    return this.request('/ai/chat', { method: 'POST', body: { message, context } });
+  async sendAIMessage(message: string, context?: Record<string, unknown>) {
+    return this.request<{
+      success?: boolean;
+      response: string;
+      model?: string;
+      tokens?: number;
+      latency?: number;
+    }>('/ai/chat', { method: 'POST', body: { message, context } });
+  }
+
+  async getAIHealth() {
+    return this.request<{ status: string; openaiConfigured: boolean; mode: string }>('/ai/health');
   }
 
   /** ERP Assistant — plain-language help for CS clerks; uses live order/shipment snapshot when DB is connected. */

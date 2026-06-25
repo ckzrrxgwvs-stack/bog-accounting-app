@@ -159,7 +159,9 @@ export function AICPA() {
           </div>
           <div className="ml-3">
             <h2 className="font-semibold text-black">AI CPA Assistant</h2>
-            <p className="text-xs text-gray-500">Your virtual accounting advisor</p>
+            <p className="text-xs text-gray-500">
+              Live data from your books · set OPENAI_API_KEY on Render for full AI
+            </p>
           </div>
         </div>
         <div className="flex items-center space-x-2">
