@@ -1,6 +1,7 @@
 import { execFileSync } from 'child_process';
 import { prisma } from '../lib/prisma';
 import { useDatabase } from '../lib/dbMode';
+import { normalizeDatabaseUrl, prismaCliDatabaseUrl } from '../lib/databaseUrl';
 
 let schemaChecked = false;
 let schemaReady = false;
@@ -24,9 +25,13 @@ export async function ensureDatabaseSchema(): Promise<void> {
 
   console.log('   → Applying database schema (prisma db push)…');
   try {
-    execFileSync('pnpm', ['exec', 'prisma', 'db', 'push'], {
+    const rawUrl = normalizeDatabaseUrl(process.env.DATABASE_URL);
+    execFileSync('pnpm', ['exec', 'prisma', 'db', 'push', '--accept-data-loss'], {
       stdio: 'pipe',
-      env: process.env,
+      env: {
+        ...process.env,
+        ...(rawUrl ? { DATABASE_URL: prismaCliDatabaseUrl(rawUrl) } : {}),
+      },
       cwd: process.cwd(),
     });
     schemaReady = await pingSchema();

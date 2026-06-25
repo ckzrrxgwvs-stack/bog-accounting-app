@@ -14,6 +14,42 @@ export function normalizeDatabaseUrl(raw: string | undefined): string | undefine
   return url;
 }
 
+function parseDbUrl(url: string): URL {
+  return new URL(url.replace(/^postgres:\/\//, 'postgresql://'));
+}
+
+function formatDbUrl(parsed: URL, preferPostgresScheme: boolean): string {
+  let out = parsed.toString();
+  if (preferPostgresScheme) {
+    out = out.replace(/^postgresql:/, 'postgres:');
+  }
+  return out;
+}
+
+/** True for Supabase direct or pooler hosts. */
+export function needsPgSsl(url: string): boolean {
+  return (
+    url.includes('supabase.co') ||
+    url.includes('pooler.supabase.com') ||
+    process.env.DATABASE_SSL === 'true'
+  );
+}
+
+/** Runtime pg pool: drop sslmode=require so Pool ssl config is used (avoids verify-full). */
+export function pgPoolConnectionString(url: string): string {
+  const parsed = parseDbUrl(url);
+  parsed.searchParams.delete('sslmode');
+  return formatDbUrl(parsed, url.startsWith('postgres://'));
+}
+
+/** Prisma CLI (db push): accept Supabase pooler cert without strict verification. */
+export function prismaCliDatabaseUrl(url: string): string {
+  const parsed = parseDbUrl(url);
+  parsed.searchParams.delete('sslmode');
+  parsed.searchParams.set('sslmode', 'no-verify');
+  return formatDbUrl(parsed, url.startsWith('postgres://'));
+}
+
 export type DatabaseUrlCheck =
   | { ok: true; host: string; port: string }
   | { ok: false; reason: string };
@@ -26,7 +62,7 @@ export function validateDatabaseUrl(url: string): DatabaseUrlCheck {
     };
   }
   try {
-    const parsed = new URL(url.replace(/^postgres:\/\//, 'postgresql://'));
+    const parsed = parseDbUrl(url);
     if (!parsed.hostname) {
       return {
         ok: false,
