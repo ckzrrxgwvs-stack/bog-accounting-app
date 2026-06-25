@@ -20,41 +20,50 @@ const USERS: {
 
 let bootstrapped = false;
 
-/** First deploy only: company + COA + users when User table is empty. */
+/** Ensure company, COA, and demo users exist (upsert — safe on every deploy). */
 export async function ensureProgramBootstrap(): Promise<void> {
   if (!useDatabase() || bootstrapped) return;
 
-  const userCount = await prisma.user.count();
-  if (userCount > 0) {
-    bootstrapped = true;
-    return;
-  }
-
-  const company = await getOrCreateDefaultCompany();
-  await prisma.company.update({
-    where: { id: company.id },
-    data: {
-      name: process.env.BOG_COMPANY_NAME?.trim() || 'BOG Commerce',
-      legalName: 'BOG Commerce LLC',
-    },
-  });
-
-  const hash = await bcrypt.hash(DEMO_PASSWORD, 12);
-  for (const u of USERS) {
-    await prisma.user.create({
+  try {
+    const company = await getOrCreateDefaultCompany();
+    await prisma.company.update({
+      where: { id: company.id },
       data: {
-        email: u.email,
-        passwordHash: hash,
-        firstName: u.firstName,
-        lastName: u.lastName,
-        role: u.role,
-        companyId: company.id,
-        isActive: true,
-        mfaEnabled: false,
+        name: process.env.BOG_COMPANY_NAME?.trim() || 'BOG Commerce',
+        legalName: 'BOG Commerce LLC',
       },
     });
-  }
 
-  console.log(`   ✓ Program bootstrap: seeded ${USERS.length} users (empty database)`);
-  bootstrapped = true;
+    const hash = await bcrypt.hash(DEMO_PASSWORD, 12);
+    for (const u of USERS) {
+      await prisma.user.upsert({
+        where: { email: u.email },
+        create: {
+          email: u.email,
+          passwordHash: hash,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          role: u.role,
+          companyId: company.id,
+          isActive: true,
+          mfaEnabled: false,
+        },
+        update: {
+          passwordHash: hash,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          role: u.role,
+          companyId: company.id,
+          isActive: true,
+          mfaEnabled: false,
+        },
+      });
+    }
+
+    console.log(`   ✓ Program bootstrap: ${USERS.length} demo users ready`);
+    bootstrapped = true;
+  } catch (e) {
+    console.error('   ⚠️  Program bootstrap failed:', e instanceof Error ? e.message : e);
+    throw e;
+  }
 }
