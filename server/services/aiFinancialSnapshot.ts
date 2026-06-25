@@ -101,6 +101,9 @@ export async function buildFinancialSnapshot(): Promise<string> {
     });
 
     const nonZero = balances.filter((b) => Math.abs(b.balance) > 0.01).slice(0, 24);
+    const cashAccounts = balances.filter(
+      (b) => b.type === AccountType.ASSET && /cash|bank/i.test(b.name) && Math.abs(b.balance) > 0.01
+    );
     const jeSummary = jeCounts.map((r) => `${r.status}:${r._count.id}`).join(', ');
 
     const investmentBlocks: string[] = [];
@@ -140,6 +143,9 @@ As-of: ${now.toISOString().slice(0, 10)}
 
 ### Journal entries by status
 ${jeSummary || 'none'}
+
+### Cash & liquidity (commerce)
+${cashAccounts.length ? cashAccounts.map((b) => `- ${b.code} ${b.name}: ${fmt(b.balance)}`).join('\n') : '- (no cash balance posted yet)'}
 
 ### Commerce account balances (non-zero)
 ${nonZero.length ? nonZero.map((b) => `- ${b.code} ${b.name} (${b.type}): ${fmt(b.balance)}`).join('\n') : '- (all zero — post journals or use Opening balances)'}

@@ -9,6 +9,7 @@ import {
   formatRecentAiMemoriesForPrompt,
   recordAiTenantMemoryIfEnabled,
 } from './aiTenantMemory';
+import { buildQuotaFallbackResponse, isOpenAIQuotaError } from './aiSnapshotFallback';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'demo-key',
@@ -80,6 +81,13 @@ export async function chatWithAI(
     };
   } catch (error) {
     console.error('OpenAI API Error:', error);
+    if (isOpenAIQuotaError(error)) {
+      return {
+        response: buildQuotaFallbackResponse(userMessage, snapshot),
+        model: 'snapshot-fallback',
+        latency: Date.now() - startTime,
+      };
+    }
     const msg = error instanceof Error ? error.message : 'Unknown error';
     return {
       response: `AI service error: ${msg.slice(0, 200)}. Your snapshot is still available in Reports. Check OPENAI_API_KEY and billing on the OpenAI platform.`,
