@@ -157,6 +157,26 @@ export function Settings() {
   const [issueNotes, setIssueNotes] = useState('');
   const [issueExpires, setIssueExpires] = useState('');
   const [fxStatus, setFxStatus] = useState<string | null>(null);
+  const [bankAccounts, setBankAccounts] = useState<
+    { id: string; name: string; accountMask: string | null; transactionCount: number }[]
+  >([]);
+  const [bankCsv, setBankCsv] = useState('');
+  const [bankImportAccount, setBankImportAccount] = useState('Operating');
+  const [bankImportMsg, setBankImportMsg] = useState<string | null>(null);
+  const [bankImportBusy, setBankImportBusy] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'integrations' || !companySettings.useBankFeeds) return;
+    let cancelled = false;
+    (async () => {
+      const res = await api.getBankFeedAccounts();
+      if (cancelled || !res.success || !res.data) return;
+      setBankAccounts(res.data.accounts ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, companySettings.useBankFeeds]);
 
   useEffect(() => {
     if (activeTab !== 'licensing' || !canManageLicenses) return;
@@ -858,6 +878,95 @@ export function Settings() {
           </div>
         </div>
       </div>
+
+      {companySettings.useBankFeeds && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h3 className="font-semibold text-black mb-1">CSV bank import (stub)</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            Paste CSV with columns <code className="text-xs">date, amount, memo</code> (YYYY-MM-DD). Dry-run first; no live Plaid/MX.
+          </p>
+          {bankAccounts.length > 0 && (
+            <ul className="mb-4 text-sm text-zinc-600 space-y-1">
+              {bankAccounts.map((a) => (
+                <li key={a.id}>
+                  {a.name}
+                  {a.accountMask ? ` ••••${a.accountMask}` : ''} — {a.transactionCount} transactions
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2 mb-3">
+            <input
+              type="text"
+              value={bankImportAccount}
+              onChange={(e) => setBankImportAccount(e.target.value)}
+              placeholder="Account name"
+              className="border border-gray-300 rounded-lg px-4 py-2 text-sm"
+            />
+          </div>
+          <textarea
+            value={bankCsv}
+            onChange={(e) => setBankCsv(e.target.value)}
+            placeholder={'date,amount,memo\n2026-06-01,-50.00,Office supplies'}
+            rows={5}
+            className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm font-mono mb-3"
+          />
+          {bankImportMsg && (
+            <p className="text-sm mb-3 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">{bankImportMsg}</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={bankImportBusy || !bankCsv.trim()}
+              onClick={async () => {
+                setBankImportBusy(true);
+                setBankImportMsg(null);
+                const res = await api.importBankFeedCsv({
+                  csv: bankCsv,
+                  accountName: bankImportAccount,
+                  dryRun: true,
+                });
+                setBankImportBusy(false);
+                if (!res.success || !res.data) {
+                  setBankImportMsg(res.error ?? 'Preview failed');
+                  return;
+                }
+                setBankImportMsg(
+                  `Preview: ${res.data.previewCount} new row(s), ${res.data.skipped} duplicate(s) skipped.`
+                );
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+            >
+              Dry run
+            </button>
+            <button
+              type="button"
+              disabled={bankImportBusy || !bankCsv.trim()}
+              onClick={async () => {
+                setBankImportBusy(true);
+                setBankImportMsg(null);
+                const res = await api.importBankFeedCsv({
+                  csv: bankCsv,
+                  accountName: bankImportAccount,
+                  dryRun: false,
+                });
+                setBankImportBusy(false);
+                if (!res.success || !res.data) {
+                  setBankImportMsg(res.error ?? 'Import failed');
+                  return;
+                }
+                setBankImportMsg(`Imported ${res.data.imported} transaction(s), ${res.data.skipped} skipped.`);
+                setBankCsv('');
+                const acc = await api.getBankFeedAccounts();
+                if (acc.success && acc.data) setBankAccounts(acc.data.accounts ?? []);
+              }}
+              className="px-4 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+            >
+              Import
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* US federal tax — opt-in only; no IRS / transmitter APIs in this build */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">

@@ -36,6 +36,7 @@ import { useDatabase } from './lib/dbMode';
 import { applyDatabaseUrlEnv } from './lib/databaseUrl';
 import { ensureProgramBootstrap } from './services/ensureProgramBootstrap';
 import { ensureDatabaseSchema, isSchemaReady } from './services/ensureDatabaseSchema';
+import { bankFeedsRouter } from './routes/bankFeeds';
 import { setupRouter } from './routes/setup';
 
 config({ override: true });
@@ -101,6 +102,7 @@ app.use('/api/product-intel', productIntelRouter);
 app.use('/api/agent-org', agentOrgRouter);
 app.use('/api/connectors/shopify', shopifyConnectorRouter);
 app.use('/api/connectors/robinhood', robinhoodConnectorRouter);
+app.use('/api/bank-feeds', bankFeedsRouter);
 app.use('/api/setup', setupRouter);
 
 // Health check

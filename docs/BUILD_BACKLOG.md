@@ -13,35 +13,26 @@ pnpm run seed:autonomy-backlog
 
 View queue: `GET /api/agent-org/work` (President/CFO JWT) or Prisma `AgentWorkItem`.
 
-## Open tickets (priority order)
+## Tickets (priority order)
 
-| P | Filed by | Title | Status |
-|---|----------|-------|--------|
-| 20 | Bookkeeper + Controller | Dashboard AR/AP aging bucket breakdown | OPEN |
-| 25 | Controller | Period close wizard UI | OPEN |
-| 35 | Connector + Controller | Bank feed integration stub (read-only) | OPEN |
-| 40 | Connector | Crew journal ingest status panel | OPEN |
+| P | Title | Status |
+|---|-------|--------|
+| 20 | Dashboard AR/AP aging bucket breakdown | ✅ DONE |
+| 25 | Period close wizard UI | ✅ DONE |
+| 35 | Bank feed integration stub (read-only) | ✅ DONE |
+| 40 | Crew journal ingest status panel | ✅ DONE |
 
-## Standup — 2026-06-25
+## Implemented (2026-06-25)
 
-**Done today**
+- **P20** — Dashboard aging summary shows Current / 1–30 / 31–60 / 60+ buckets via `/api/reports/ar-aging` and `ap-aging`.
+- **P25** — `PeriodClose.tsx` four-step wizard; `GET /api/periods/preview` validates TB balance and open journals before close.
+- **P35** — `BankFeedAccount` + `BankFeedTransaction` models; `POST /api/bank-feeds/import-csv`; Settings integrations CSV import when `useBankFeeds` is on.
+- **P40** — `GET /api/dashboard/ingest-summary`; Dashboard “Crew ingest” card per ledger book.
 
-- Removed all demo/mock ledger data; Postgres-only books (`bog-12`).
-- `PROGRAM_AUTONOMY_MANDATE.md` + systems engineer skill updated.
+**After pull:** run `pnpm exec prisma db push` (or migrate) for bank feed tables.
 
-**Stuck**
+## Next backlog (deferred)
 
-- None — DB required for all routes.
-
-**Next (systems engineer)**
-
-1. **P20** — Aging buckets on Dashboard (reuse `invoices/aging`).
-2. **P25** — Period close wizard.
-3. **P35** — Bank feed stub + CSV import.
-4. **P40** — Ingest summary for crew connectors.
-
-**Human approval before**
-
-- Live bank OAuth (Plaid/MX).
-- Auto-post without Controller policy.
-- Production deploy.
+- Live Plaid/MX OAuth (Human approval)
+- Auto-reconcile bank lines to GL
+- Period close audit log UI surfacing

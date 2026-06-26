@@ -113,6 +113,8 @@ model Company {
   productFeedbacks    ProductFeedback[]
   accountingEvents    AccountingEvent[]
   agentWorkItems      AgentWorkItem[]
+  bankFeedAccounts    BankFeedAccount[]
+  bankFeedTransactions BankFeedTransaction[]
 }
 
 enum AiMemoryChannel {
@@ -362,6 +364,41 @@ model ClosedPeriod {
 
   @@unique([companyId, year, period])
   @@index([companyId])
+}
+
+/** Bank feed account — CSV import stub; no live Plaid/MX until Human approves. */
+model BankFeedAccount {
+  id            String   @id @default(cuid())
+  companyId     String
+  name          String
+  institution   String?
+  accountMask   String?
+  currency      String   @default("USD")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions  BankFeedTransaction[]
+
+  @@index([companyId])
+}
+
+model BankFeedTransaction {
+  id                String   @id @default(cuid())
+  companyId         String
+  bankFeedAccountId String
+  externalId        String
+  postedDate        DateTime
+  amount            Decimal  @db.Decimal(18, 2)
+  memo              String?
+  importedAt        DateTime @default(now())
+
+  company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bankFeedAccount   BankFeedAccount @relation(fields: [bankFeedAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, externalId])
+  @@index([companyId, bankFeedAccountId, postedDate])
 }
 
 model User {

@@ -136,6 +136,88 @@ class ApiClient {
     return this.request('/periods/reopen', { method: 'POST', body: { year, period } });
   }
 
+  async getPeriodClosePreview(year: number, period: number) {
+    return this.request<{
+      year: number;
+      period: number;
+      alreadyClosed: boolean;
+      closedAt: string | null;
+      trialBalance: { totalDebits: number; totalCredits: number; isBalanced: boolean };
+      openJournals: { id: string; entryNumber: number; date: string; description: string; status: string }[];
+      canClose: boolean;
+    }>(`/periods/preview?year=${year}&period=${period}`);
+  }
+
+  async getIngestSummary() {
+    return this.request<{
+      books: Array<{
+        bookId: string;
+        companyName: string;
+        draftCount: number;
+        postedCount: number;
+        pendingApprovalCount: number;
+        sources: Array<{
+          source: string;
+          sourceType: string;
+          draftCount: number;
+          postedCount: number;
+          pendingApprovalCount: number;
+          lastPostedAt: string | null;
+        }>;
+      }>;
+      totalDraftCount: number;
+      hint: string | null;
+    }>('/dashboard/ingest-summary');
+  }
+
+  async getBankFeedAccounts() {
+    return this.request<{
+      accounts: Array<{
+        id: string;
+        name: string;
+        institution: string | null;
+        accountMask: string | null;
+        currency: string;
+        transactionCount: number;
+      }>;
+      useBankFeeds: boolean;
+    }>('/bank-feeds/accounts');
+  }
+
+  async getBankFeedTransactions(params?: { accountId?: string; limit?: number }) {
+    const q = new URLSearchParams();
+    if (params?.accountId) q.set('accountId', params.accountId);
+    if (params?.limit != null) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return this.request<{
+      transactions: Array<{
+        id: string;
+        accountId: string;
+        accountName: string;
+        date: string;
+        amount: number;
+        memo: string;
+      }>;
+    }>(`/bank-feeds/transactions${qs ? `?${qs}` : ''}`);
+  }
+
+  async importBankFeedCsv(body: {
+    csv?: string;
+    accountName: string;
+    accountMask?: string;
+    institution?: string;
+    dryRun?: boolean;
+  }) {
+    return this.request<{
+      dryRun: boolean;
+      imported: number;
+      skipped: number;
+      previewCount: number;
+      preview: Array<{ date: string; amount: number; memo: string }>;
+      hint?: string;
+    }>('/bank-feeds/import-csv', { method: 'POST', body });
+  }
+
   /** Trial balance CSV — triggers browser download when given blob handling on caller */
   async fetchTrialBalanceCsv(params: { month?: number; year?: number; book?: string }) {
     const q = new URLSearchParams();

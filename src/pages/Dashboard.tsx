@@ -131,6 +131,35 @@ function fmtMoney(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
 
+type AgingBucket = { bucket: string; amount: number };
+
+const BUCKET_COLORS: Record<string, string> = {
+  Current: 'bg-green-500',
+  '1-30 days': 'bg-amber-500',
+  '31-60 days': 'bg-orange-500',
+  '60+ days': 'bg-red-500',
+};
+
+function AgingBucketList({ buckets, emptyLabel }: { buckets: AgingBucket[]; emptyLabel: string }) {
+  const total = buckets.reduce((s, b) => s + b.amount, 0);
+  if (total === 0) {
+    return <p className="text-sm text-zinc-500">{emptyLabel}</p>;
+  }
+  return (
+    <div className="space-y-2">
+      {buckets.map((item) => (
+        <div key={item.bucket} className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className={`w-2 h-2 ${BUCKET_COLORS[item.bucket] ?? 'bg-zinc-400'} rounded-full mr-2`} />
+            <span className="text-sm text-gray-600">{item.bucket}</span>
+          </div>
+          <span className="font-figures text-sm font-semibold text-bog-ink">{fmtMoney(item.amount)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function Dashboard() {
   const { user } = useAuthStore();
   const serverMode = useServerMode();
@@ -143,7 +172,17 @@ export function Dashboard() {
     empty: boolean;
     recentActivity: { id: string; date: string; description: string }[];
   } | null>(null);
-  const [aging, setAging] = useState<{ arTotal: number; apTotal: number }>({ arTotal: 0, apTotal: 0 });
+  const [aging, setAging] = useState<{
+    arTotal: number;
+    apTotal: number;
+    arBuckets: AgingBucket[];
+    apBuckets: AgingBucket[];
+  }>({ arTotal: 0, apTotal: 0, arBuckets: [], apBuckets: [] });
+  const [ingest, setIngest] = useState<{
+    totalDraftCount: number;
+    hint: string | null;
+    books: Array<{ bookId: string; companyName: string; draftCount: number; postedCount: number }>;
+  } | null>(null);
   const [overdueAr, setOverdueAr] = useState(0);
 
   const now = new Date();
@@ -153,11 +192,12 @@ export function Dashboard() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [summaryRes, finRes, arRes, apRes] = await Promise.all([
+      const [summaryRes, finRes, arRes, apRes, ingestRes] = await Promise.all([
         api.getDashboardSummary(),
         api.getDashboardFinancials({ month, year }),
         api.getArAgingReport(),
         api.getApAgingReport(),
+        api.getIngestSummary(),
       ]);
       if (!alive) return;
 
@@ -184,12 +224,22 @@ export function Dashboard() {
         setFinancials(f);
       }
 
-      const sumBuckets = (data: unknown) => {
-        const buckets = (data as { buckets?: { amount: number }[] })?.buckets ?? [];
-        return buckets.reduce((s, b) => s + (Number(b.amount) || 0), 0);
+      const bucketsFrom = (data: unknown) => {
+        const buckets = (data as { buckets?: AgingBucket[] })?.buckets ?? [];
+        const total = buckets.reduce((s, b) => s + (Number(b.amount) || 0), 0);
+        return { buckets, total };
       };
-      if (arRes.success) setAging((a) => ({ ...a, arTotal: sumBuckets(arRes.data) }));
-      if (apRes.success) setAging((a) => ({ ...a, apTotal: sumBuckets(apRes.data) }));
+      if (arRes.success) {
+        const { buckets, total } = bucketsFrom(arRes.data);
+        setAging((a) => ({ ...a, arTotal: total, arBuckets: buckets }));
+      }
+      if (apRes.success) {
+        const { buckets, total } = bucketsFrom(apRes.data);
+        setAging((a) => ({ ...a, apTotal: total, apBuckets: buckets }));
+      }
+      if (ingestRes.success && ingestRes.data) {
+        setIngest(ingestRes.data);
+      }
     })();
     return () => {
       alive = false;
@@ -374,8 +424,10 @@ export function Dashboard() {
                   {fmtMoney(aging.arTotal)}
                 </span>
               </div>
-              {aging.arTotal === 0 && (
+              {aging.arTotal === 0 ? (
                 <p className="text-sm text-zinc-500">No open receivables.</p>
+              ) : (
+                <AgingBucketList buckets={aging.arBuckets} emptyLabel="No open receivables." />
               )}
             </div>
 
@@ -387,11 +439,43 @@ export function Dashboard() {
                   {fmtMoney(aging.apTotal)}
                 </span>
               </div>
-              {aging.apTotal === 0 && (
+              {aging.apTotal === 0 ? (
                 <p className="text-sm text-zinc-500">No open payables.</p>
+              ) : (
+                <AgingBucketList buckets={aging.apBuckets} emptyLabel="No open payables." />
               )}
             </div>
           </div>
+
+          {/* Crew ingest status */}
+          {ingest && (
+            <div className="bog-statement-card p-6">
+              <h2 className="text-lg font-semibold text-bog-ink mb-1">Crew ingest</h2>
+              <p className="text-xs text-zinc-500 mb-4">Journal sync from dropship &amp; investment crews (last 30 days)</p>
+              {ingest.hint && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  {ingest.hint}
+                </div>
+              )}
+              <div className="space-y-3">
+                {ingest.books.map((b) => (
+                  <div key={b.bookId} className="rounded-lg border border-bog-rule bg-white px-3 py-2">
+                    <div className="flex items-center justify-between text-sm font-medium text-bog-ink">
+                      <span>{b.companyName}</span>
+                      {b.draftCount > 0 && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                          {b.draftCount} draft
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {b.postedCount} posted · {b.draftCount} draft
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* AI CPA Quick Access */}
           <Link

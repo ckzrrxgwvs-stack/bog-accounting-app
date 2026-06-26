@@ -148,4 +148,109 @@ router.get('/financials', async (req, res) => {
   }
 });
 
+const INGEST_SOURCES = [
+  { sourceType: 'dropship_crew', label: 'Dropship Crew', bookId: 'commerce' as const },
+  { sourceType: 'shopify_connector', label: 'Shopify', bookId: 'commerce' as const },
+  { sourceType: 'investment_fund_crew', label: 'Investment Fund (Agentic)', bookId: 'investment_sma' as const },
+  { sourceType: 'investment_personal', label: 'Investment (Personal)', bookId: 'investment_personal' as const },
+];
+
+/** Crew / connector journal ingest health per ledger book. */
+router.get('/ingest-summary', async (_req, res) => {
+  if (!requireDatabase(res)) return;
+
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+
+  try {
+    const commerce = await getOrCreateDefaultCompany();
+    const { getOrCreateInvestmentCompany, INVESTMENT_BOOKS } = await import('../services/investmentBooks');
+
+    const bookCompanies: { bookId: string; companyName: string; companyId: string }[] = [
+      { bookId: 'commerce', companyName: commerce.name, companyId: commerce.id },
+    ];
+    for (const bookId of ['investment_sma', 'investment_personal'] as const) {
+      const co = await getOrCreateInvestmentCompany(bookId);
+      bookCompanies.push({
+        bookId,
+        companyName: INVESTMENT_BOOKS[bookId].companyName,
+        companyId: co.id,
+      });
+    }
+
+    const books = await Promise.all(
+      bookCompanies.map(async (b) => {
+        const sources = INGEST_SOURCES.filter((s) => s.bookId === b.bookId);
+        const sourceSummaries = await Promise.all(
+          sources.map(async (src) => {
+            const [draft, posted, pending, lastPosted] = await Promise.all([
+              prisma.journalEntry.count({
+                where: { companyId: b.companyId, sourceType: src.sourceType, status: EntryStatus.DRAFT },
+              }),
+              prisma.journalEntry.count({
+                where: { companyId: b.companyId, sourceType: src.sourceType, status: EntryStatus.POSTED },
+              }),
+              prisma.journalEntry.count({
+                where: {
+                  companyId: b.companyId,
+                  sourceType: src.sourceType,
+                  status: EntryStatus.PENDING_APPROVAL,
+                },
+              }),
+              prisma.journalEntry.findFirst({
+                where: {
+                  companyId: b.companyId,
+                  sourceType: src.sourceType,
+                  status: EntryStatus.POSTED,
+                  updatedAt: { gte: since },
+                },
+                orderBy: { updatedAt: 'desc' },
+                select: { updatedAt: true },
+              }),
+            ]);
+            return {
+              source: src.label,
+              sourceType: src.sourceType,
+              draftCount: draft,
+              postedCount: posted,
+              pendingApprovalCount: pending,
+              lastPostedAt: lastPosted?.updatedAt.toISOString() ?? null,
+            };
+          })
+        );
+
+        const totals = sourceSummaries.reduce(
+          (acc, s) => ({
+            draftCount: acc.draftCount + s.draftCount,
+            postedCount: acc.postedCount + s.postedCount,
+            pendingApprovalCount: acc.pendingApprovalCount + s.pendingApprovalCount,
+          }),
+          { draftCount: 0, postedCount: 0, pendingApprovalCount: 0 }
+        );
+
+        return {
+          bookId: b.bookId,
+          companyName: b.companyName,
+          sources: sourceSummaries,
+          ...totals,
+        };
+      })
+    );
+
+    const totalDrafts = books.reduce((s, b) => s + b.draftCount, 0);
+
+    res.json({
+      books,
+      totalDraftCount: totalDrafts,
+      hint:
+        totalDrafts > 0
+          ? 'Run pnpm run post:draft-journals after crew pushes to post DRAFT journals.'
+          : null,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(503).json({ error: 'Database unavailable' });
+  }
+});
+
 export { router as dashboardRouter };
