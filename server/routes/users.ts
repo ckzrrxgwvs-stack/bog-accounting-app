@@ -1,49 +1,13 @@
-// User directory — Prisma + bcrypt when DATABASE_URL is set; otherwise mock for UI dev.
+// User directory — PostgreSQL via Prisma.
 
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { Prisma, UserRoleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 
 const router = Router();
-
-const mockUsers = [
-  {
-    id: 'u1',
-    email: 'admin@company.com',
-    firstName: 'John',
-    lastName: 'President',
-    role: 'PRESIDENT',
-    isActive: true,
-    mfaEnabled: true,
-    companyId: '1',
-    createdAt: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'u2',
-    email: 'cfo@company.com',
-    firstName: 'Jane',
-    lastName: 'CFO',
-    role: 'CFO',
-    isActive: true,
-    mfaEnabled: true,
-    companyId: '1',
-    createdAt: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'u3',
-    email: 'accountant@company.com',
-    firstName: 'Alex',
-    lastName: 'Accountant',
-    role: 'ACCOUNTANT',
-    isActive: true,
-    mfaEnabled: false,
-    companyId: '1',
-    createdAt: '2026-01-01T00:00:00.000Z',
-  },
-];
 
 function mapUser(u: {
   id: string;
@@ -70,10 +34,7 @@ function mapUser(u: {
 }
 
 router.get('/', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ users: mockUsers });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const rows = await prisma.user.findMany({
@@ -88,6 +49,7 @@ router.get('/', async (_req, res) => {
 });
 
 router.post('/', async (req, res) => {
+  if (!requireDatabase(res)) return;
   const { email, firstName, lastName, role, password } = req.body as {
     email?: string;
     firstName?: string;
@@ -97,22 +59,6 @@ router.post('/', async (req, res) => {
   };
   if (!email || !firstName || !lastName || !role) {
     res.status(400).json({ error: 'Missing required fields' });
-    return;
-  }
-
-  if (!useDatabase()) {
-    const user = {
-      id: `u-${Date.now()}`,
-      email,
-      firstName,
-      lastName,
-      role,
-      isActive: true,
-      mfaEnabled: true,
-      companyId: '1',
-      createdAt: new Date().toISOString(),
-    };
-    res.status(201).json({ user });
     return;
   }
 
@@ -145,15 +91,7 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  if (!useDatabase()) {
-    const user = mockUsers.find((u) => u.id === req.params.id);
-    if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-    res.json({ user: { ...user, ...req.body, id: user.id } });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const body = req.body as Partial<{
@@ -188,19 +126,10 @@ router.put('/:id', async (req, res) => {
 });
 
 router.put('/:id/role', async (req, res) => {
+  if (!requireDatabase(res)) return;
   const { role } = req.body as { role?: string };
   if (!role) {
     res.status(400).json({ error: 'role required' });
-    return;
-  }
-
-  if (!useDatabase()) {
-    const user = mockUsers.find((u) => u.id === req.params.id);
-    if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-    res.json({ user: { ...user, role } });
     return;
   }
 
@@ -216,15 +145,7 @@ router.put('/:id/role', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
-  if (!useDatabase()) {
-    const user = mockUsers.find((u) => u.id === req.params.id);
-    if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-    res.json({ success: true });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     await prisma.user.delete({ where: { id: req.params.id } });

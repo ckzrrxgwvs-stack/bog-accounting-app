@@ -4,21 +4,13 @@
  */
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 
 const router = Router();
 
 router.get('/summary', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({
-      purchaseOrders: { draft: 0, open: 0, closed: 0 },
-      salesOrders: { draft: 0, open: 0, closed: 0 },
-      logistics: { shipmentsOpen: 0, asnInFlight: 0, rmaOpen: 0 },
-      hint: 'Connect DATABASE_URL for live ERP order counts.',
-    });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const company = await getOrCreateDefaultCompany();

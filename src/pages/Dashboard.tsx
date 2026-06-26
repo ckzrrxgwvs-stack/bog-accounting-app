@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/services/api';
+import { useServerMode } from '@/hooks/useServerMode';
 import { StatusBadge, FeatureBadge } from '@/components/StatusBadge';
 
 interface KPICardProps {
@@ -126,66 +127,105 @@ function RecentTransaction({ date, description, amount, type, icon }: RecentTran
   );
 }
 
+function fmtMoney(n: number) {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+}
+
 export function Dashboard() {
   const { user } = useAuthStore();
+  const serverMode = useServerMode();
   const [opsNote, setOpsNote] = useState<string | null>(null);
+  const [financials, setFinancials] = useState<{
+    revenue: number;
+    expenses: number;
+    netIncome: number;
+    cash: number;
+    empty: boolean;
+    recentActivity: { id: string; date: string; description: string }[];
+  } | null>(null);
+  const [aging, setAging] = useState<{ arTotal: number; apTotal: number }>({ arTotal: 0, apTotal: 0 });
+  const [overdueAr, setOverdueAr] = useState(0);
+
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const r = await api.getDashboardSummary();
-      if (!alive || !r.success || !r.data) return;
-      const d = r.data as {
-        overdueArCount: number;
-        overdueApCount: number;
-        draftJournalCount: number;
-        pendingApprovalJournalCount: number;
-        lowStockItems: number;
+      const [summaryRes, finRes, arRes, apRes] = await Promise.all([
+        api.getDashboardSummary(),
+        api.getDashboardFinancials({ month, year }),
+        api.getArAgingReport(),
+        api.getApAgingReport(),
+      ]);
+      if (!alive) return;
+
+      if (summaryRes.success && summaryRes.data) {
+        const d = summaryRes.data as {
+          overdueArCount: number;
+          overdueApCount: number;
+          draftJournalCount: number;
+          pendingApprovalJournalCount: number;
+          lowStockItems: number;
+        };
+        setOverdueAr(d.overdueArCount);
+        const parts: string[] = [];
+        if (d.overdueArCount) parts.push(`${d.overdueArCount} overdue AR`);
+        if (d.overdueApCount) parts.push(`${d.overdueApCount} overdue AP`);
+        if (d.draftJournalCount) parts.push(`${d.draftJournalCount} draft journals`);
+        if (d.pendingApprovalJournalCount) parts.push(`${d.pendingApprovalJournalCount} journals pending approval`);
+        if (d.lowStockItems) parts.push(`${d.lowStockItems} low-stock items`);
+        setOpsNote(parts.length ? parts.join(' · ') : null);
+      }
+
+      if (finRes.success && finRes.data) {
+        const f = finRes.data as typeof financials;
+        setFinancials(f);
+      }
+
+      const sumBuckets = (data: unknown) => {
+        const buckets = (data as { buckets?: { amount: number }[] })?.buckets ?? [];
+        return buckets.reduce((s, b) => s + (Number(b.amount) || 0), 0);
       };
-      const parts: string[] = [];
-      if (d.overdueArCount) parts.push(`${d.overdueArCount} overdue AR`);
-      if (d.overdueApCount) parts.push(`${d.overdueApCount} overdue AP`);
-      if (d.draftJournalCount) parts.push(`${d.draftJournalCount} draft journals`);
-      if (d.pendingApprovalJournalCount) parts.push(`${d.pendingApprovalJournalCount} journals pending approval`);
-      if (d.lowStockItems) parts.push(`${d.lowStockItems} low-stock items`);
-      if (parts.length) setOpsNote(parts.join(' · '));
+      if (arRes.success) setAging((a) => ({ ...a, arTotal: sumBuckets(arRes.data) }));
+      if (apRes.success) setAging((a) => ({ ...a, apTotal: sumBuckets(apRes.data) }));
     })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [month, year]);
 
-  const kpis = [
-    {
-      title: 'Total Revenue',
-      value: '$124,500',
-      change: 12.5,
-      trend: 'up' as const,
-      icon: <DollarSign size={22} />,
-    },
-    {
-      title: 'Total Expenses',
-      value: '$89,200',
-      change: -3.2,
-      trend: 'down' as const,
-      icon: <CreditCard size={22} />,
-      highlight: true,
-    },
-    {
-      title: 'Net Income',
-      value: '$35,300',
-      change: 18.7,
-      trend: 'up' as const,
-      icon: <TrendingUp size={22} />,
-    },
-    {
-      title: 'Cash Balance',
-      value: '$52,800',
-      change: 5.1,
-      trend: 'up' as const,
-      icon: <DollarSign size={22} />,
-    },
-  ];
+  const kpis = financials
+    ? [
+        {
+          title: 'Total Revenue',
+          value: fmtMoney(financials.revenue),
+          icon: <DollarSign size={22} />,
+        },
+        {
+          title: 'Total Expenses',
+          value: fmtMoney(financials.expenses),
+          icon: <CreditCard size={22} />,
+          highlight: true,
+        },
+        {
+          title: 'Net Income',
+          value: fmtMoney(financials.netIncome),
+          icon: <TrendingUp size={22} />,
+        },
+        {
+          title: 'Cash Balance',
+          value: fmtMoney(financials.cash),
+          icon: <DollarSign size={22} />,
+        },
+      ]
+    : [
+        { title: 'Total Revenue', value: '—', icon: <DollarSign size={22} /> },
+        { title: 'Total Expenses', value: '—', icon: <CreditCard size={22} />, highlight: true },
+        { title: 'Net Income', value: '—', icon: <TrendingUp size={22} /> },
+        { title: 'Cash Balance', value: '—', icon: <DollarSign size={22} /> },
+      ];
 
   const quickActions = [
     {
@@ -200,7 +240,7 @@ export function Dashboard() {
       description: 'View outstanding invoices',
       href: '/ar',
       icon: <Receipt size={22} />,
-      badge: <StatusBadge status="warning" label="3 overdue" />,
+      badge: overdueAr > 0 ? <StatusBadge status="warning" label={`${overdueAr} overdue`} /> : null,
     },
     {
       title: 'Inventory',
@@ -218,13 +258,14 @@ export function Dashboard() {
     },
   ];
 
-  const recentTransactions = [
-    { date: 'Today', description: 'Invoice #1024 - Acme Corp', amount: '+$5,200', type: 'Invoice', icon: <Receipt size={18} /> },
-    { date: 'Today', description: 'Vendor Payment - Office Supplies', amount: '-$890', type: 'Payment', icon: <CreditCard size={18} /> },
-    { date: 'Yesterday', description: 'Invoice #1023 - TechStart Inc', amount: '+$12,500', type: 'Invoice', icon: <Receipt size={18} /> },
-    { date: 'Yesterday', description: 'Rent Payment', amount: '-$3,500', type: 'Journal', icon: <FileText size={18} /> },
-    { date: 'Apr 27', description: 'Invoice #1022 - Global Ltd', amount: '+$8,900', type: 'Invoice', icon: <Receipt size={18} /> },
-  ];
+  const recentTransactions =
+    financials?.recentActivity?.map((r) => ({
+      date: r.date,
+      description: r.description.slice(0, 48),
+      amount: '—',
+      type: 'Journal',
+      icon: <FileText size={18} />,
+    })) ?? [];
 
   return (
     <div className="bog-workspace border-b border-bog-rule">
@@ -238,9 +279,11 @@ export function Dashboard() {
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-3">
             <p className="bog-section-label">Overview</p>
-            <span className="rounded-md bg-amber-100 px-2 py-0.5 font-figures text-[10px] font-semibold uppercase tracking-wide text-amber-800">
-              Demo
-            </span>
+            {serverMode === 'database' && (
+              <span className="rounded-md bg-emerald-100 px-2 py-0.5 font-figures text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                Live
+              </span>
+            )}
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-bog-ink lg:text-3xl">Dashboard</h1>
           <p className="mt-1 max-w-xl text-sm text-zinc-600">
@@ -299,9 +342,13 @@ export function Dashboard() {
             </Link>
           </div>
           <div className="divide-y divide-bog-rule rounded-md border border-bog-rule bg-white">
-            {recentTransactions.map((transaction, index) => (
-              <RecentTransaction key={index} {...transaction} />
-            ))}
+            {recentTransactions.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-zinc-500">No posted journal activity yet.</p>
+            ) : (
+              recentTransactions.map((transaction, index) => (
+                <RecentTransaction key={index} {...transaction} />
+              ))
+            )}
           </div>
         </div>
 
@@ -323,48 +370,26 @@ export function Dashboard() {
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-medium text-gray-500">Accounts Receivable</h3>
-                <span className="rounded-md bg-bog-sheet px-2 py-1 font-figures text-xs font-semibold text-bog-ink">$43,700</span>
+                <span className="rounded-md bg-bog-sheet px-2 py-1 font-figures text-xs font-semibold text-bog-ink">
+                  {fmtMoney(aging.arTotal)}
+                </span>
               </div>
-              <div className="space-y-2">
-                {[
-                  { label: 'Current', value: '$18,500', color: 'bg-green-500' },
-                  { label: '1-30 days', value: '$12,300', color: 'bg-amber-500' },
-                  { label: '31-60 days', value: '$8,700', color: 'bg-orange-500' },
-                  { label: '60+ days', value: '$4,200', color: 'bg-red-500' },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className={`w-2 h-2 ${item.color} rounded-full mr-2`} />
-                      <span className="text-sm text-gray-600">{item.label}</span>
-                    </div>
-                    <span className="font-figures text-sm font-semibold text-bog-ink">{item.value}</span>
-                  </div>
-                ))}
-              </div>
+              {aging.arTotal === 0 && (
+                <p className="text-sm text-zinc-500">No open receivables.</p>
+              )}
             </div>
 
             {/* AP Aging */}
             <div className="pt-4 border-t border-gray-100">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-medium text-gray-500">Accounts Payable</h3>
-                <span className="rounded-md bg-bog-sheet px-2 py-1 font-figures text-xs font-semibold text-bog-ink">$29,500</span>
+                <span className="rounded-md bg-bog-sheet px-2 py-1 font-figures text-xs font-semibold text-bog-ink">
+                  {fmtMoney(aging.apTotal)}
+                </span>
               </div>
-              <div className="space-y-2">
-                {[
-                  { label: 'Current', value: '$15,200', color: 'bg-green-500' },
-                  { label: '1-30 days', value: '$9,800', color: 'bg-amber-500' },
-                  { label: '31-60 days', value: '$3,400', color: 'bg-orange-500' },
-                  { label: '60+ days', value: '$1,100', color: 'bg-red-500' },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className={`w-2 h-2 ${item.color} rounded-full mr-2`} />
-                      <span className="text-sm text-gray-600">{item.label}</span>
-                    </div>
-                    <span className="font-figures text-sm font-semibold text-bog-ink">{item.value}</span>
-                  </div>
-                ))}
-              </div>
+              {aging.apTotal === 0 && (
+                <p className="text-sm text-zinc-500">No open payables.</p>
+              )}
             </div>
           </div>
 

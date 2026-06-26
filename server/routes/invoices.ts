@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request } from 'express';
 import { AuditAction, InvoiceStatus, InvoiceType, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
 import { postInvoiceToGeneralLedger } from '../services/invoiceGlPost';
@@ -15,11 +15,6 @@ import { convertCurrencyAmount } from '../services/exchangeRateService';
 const router = Router();
 
 type CompanyFx = { id: string; currency: string; useMultiCurrency: boolean };
-
-const mockInvoices = [
-  { id: '1', number: 'INV-2026-1024', type: 'AR_INVOICE', customer: 'Acme Corporation', vendor: '', amount: 5200, balance: 5200, status: 'SENT', dueDate: '2026-05-20', date: '2026-04-20', paid: 0 },
-  { id: '6', number: 'AP-2026-001', type: 'AP_INVOICE', customer: '', vendor: 'Office Depot', amount: 1250, balance: 1250, status: 'DRAFT', dueDate: '2026-05-25', date: '2026-04-25', paid: 0 },
-];
 
 function mapInvoiceList(i: {
   id: string;
@@ -92,26 +87,8 @@ async function enrichInvoiceRow(
 
 // GET /api/invoices
 router.get('/', async (req, res) => {
+  if (!requireDatabase(res)) return;
   const { type, status } = req.query;
-
-  if (!useDatabase()) {
-    let invoices = [...mockInvoices].map((m) => ({
-      ...m,
-      invoiceNumber: m.number,
-      paid: m.paid ?? 0,
-      date: m.date ?? new Date().toISOString().slice(0, 10),
-      currency: 'USD',
-      functionalAmount: m.amount,
-      functionalBalance: m.balance,
-      functionalPaid: m.paid ?? 0,
-      fxMissing: false,
-    }));
-    if (type === 'AR') invoices = invoices.filter((i) => i.type === 'AR_INVOICE');
-    if (type === 'AP') invoices = invoices.filter((i) => i.type === 'AP_INVOICE');
-    if (status) invoices = invoices.filter((i) => i.status === status);
-    res.json({ invoices });
-    return;
-  }
 
   try {
     const company = await getOrCreateDefaultCompany();
@@ -138,27 +115,7 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/ar', async (_req, res) => {
-  if (!useDatabase()) {
-    const arInvoices = mockInvoices
-      .filter((i) => i.type === 'AR_INVOICE')
-      .map((m) => ({
-        ...m,
-        invoiceNumber: m.number,
-        paid: m.paid ?? 0,
-        date: m.date ?? new Date().toISOString().slice(0, 10),
-        currency: 'USD',
-        functionalAmount: m.amount,
-        functionalBalance: m.balance,
-        functionalPaid: m.paid ?? 0,
-        fxMissing: false,
-      }));
-    const total = arInvoices.reduce((sum, i) => sum + i.balance, 0);
-    res.json({
-      invoices: arInvoices,
-      summary: { total, current: total, days31to60: 0, over60Days: 0 },
-    });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const company = await getOrCreateDefaultCompany();
@@ -184,27 +141,7 @@ router.get('/ar', async (_req, res) => {
 });
 
 router.get('/ap', async (_req, res) => {
-  if (!useDatabase()) {
-    const apInvoices = mockInvoices
-      .filter((i) => i.type === 'AP_INVOICE')
-      .map((m) => ({
-        ...m,
-        invoiceNumber: m.number,
-        paid: m.paid ?? 0,
-        date: m.date ?? new Date().toISOString().slice(0, 10),
-        currency: 'USD',
-        functionalAmount: m.amount,
-        functionalBalance: m.balance,
-        functionalPaid: m.paid ?? 0,
-        fxMissing: false,
-      }));
-    const total = apInvoices.reduce((sum, i) => sum + i.balance, 0);
-    res.json({
-      invoices: apInvoices,
-      summary: { total, dueThisWeek: 0, overdue: 0, readyToPay: total },
-    });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const company = await getOrCreateDefaultCompany();
@@ -256,23 +193,7 @@ function agingBucketsFromInvoices(rows: { balance: unknown; dueDate: Date }[]): 
 }
 
 router.get('/aging', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({
-      arAging: agingBucketsFromInvoices(
-        mockInvoices.filter((i) => i.type === 'AR_INVOICE').map((i) => ({
-          balance: i.balance,
-          dueDate: new Date(i.dueDate),
-        }))
-      ),
-      apAging: agingBucketsFromInvoices(
-        mockInvoices.filter((i) => i.type === 'AP_INVOICE').map((i) => ({
-          balance: i.balance,
-          dueDate: new Date(i.dueDate),
-        }))
-      ),
-    });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const company = await getOrCreateDefaultCompany();
@@ -314,33 +235,7 @@ router.post('/', async (req, res) => {
     currency?: string;
   };
 
-  if (!useDatabase()) {
-    const rawAmt = Number(req.body.amount);
-    const amount = Number.isFinite(rawAmt) ? rawAmt : 0;
-    const num = req.body.number ?? `INV-${Date.now()}`;
-    const today = new Date().toISOString().slice(0, 10);
-    const invoice = {
-      id: String(mockInvoices.length + 1),
-      number: num,
-      invoiceNumber: num,
-      type: req.body.type ?? 'AR_INVOICE',
-      customer: req.body.customer ?? '',
-      vendor: req.body.vendor ?? '',
-      amount,
-      currency: 'USD',
-      functionalAmount: amount,
-      functionalBalance: amount,
-      functionalPaid: 0,
-      fxMissing: false,
-      paid: 0,
-      balance: amount,
-      status: req.body.status ?? 'DRAFT',
-      date: today,
-      dueDate: req.body.dueDate ?? today,
-    };
-    res.status(201).json({ invoice });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const company = await getOrCreateDefaultCompany();
@@ -420,10 +315,7 @@ router.post(
   requireGlPostRole,
   requireInvoiceGlClerkScope,
   async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required for GL posting' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   const company = await getOrCreateDefaultCompany();
   const userId = (req as Request & { glAuth?: { sub?: string } }).glAuth?.sub ?? null;
@@ -465,16 +357,7 @@ router.post(
 });
 
 router.put('/:id/status', async (req, res) => {
-  if (!useDatabase()) {
-    const inv = mockInvoices.find((i) => i.id === req.params.id);
-    if (!inv) {
-      res.status(404).json({ error: 'Invoice not found' });
-      return;
-    }
-    const status = req.body?.status ?? inv.status;
-    res.json({ invoice: { ...inv, status } });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const status = req.body?.status as InvoiceStatus | undefined;
@@ -499,15 +382,7 @@ router.put('/:id/status', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  if (!useDatabase()) {
-    const invoice = mockInvoices.find((i) => i.id === req.params.id);
-    if (!invoice) {
-      res.status(404).json({ error: 'Invoice not found' });
-      return;
-    }
-    res.json({ invoice });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const row = await prisma.invoice.findFirst({

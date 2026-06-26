@@ -39,10 +39,6 @@ import { ensureDatabaseSchema, isSchemaReady } from './services/ensureDatabaseSc
 import { setupRouter } from './routes/setup';
 
 config({ override: true });
-// start:mock sets BOG_MOCK=1 before dotenv; keep mock mode even if .env has DATABASE_URL
-if (process.env.BOG_MOCK === '1' || process.env.BOG_MOCK === 'true') {
-  delete process.env.DATABASE_URL;
-}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -131,7 +127,6 @@ app.get('/api/health', async (_req, res) => {
     database: useDatabase() && dbPing,
     schemaReady: isSchemaReady(),
     userCount,
-    mock: process.env.BOG_MOCK === '1' || process.env.BOG_MOCK === 'true',
   });
 });
 
@@ -151,7 +146,7 @@ async function startServer(): Promise<void> {
     await ensureDatabaseSchema();
     await ensureProgramBootstrap();
   } else {
-    console.log('   🧪 Mock mode (in-memory books — store + Investment SMA)');
+    console.log('   ⚠️  No DATABASE_URL — API returns 503 until Postgres is connected (pnpm run go-live:local)');
   }
 
   app.listen(PORT, () => {

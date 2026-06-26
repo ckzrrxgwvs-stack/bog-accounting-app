@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Prisma, ProductionOrderStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
 import { completeProductionRun } from '../services/erpProductionIntegration';
@@ -9,10 +9,7 @@ import { completeProductionRun } from '../services/erpProductionIntegration';
 const router = Router();
 
 router.get('/', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ productionOrders: [] });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const rows = await prisma.productionOrder.findMany({
@@ -50,10 +47,7 @@ router.post('/', async (req, res) => {
     orderNumber?: string;
   };
 
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   if (!body.finishedGoodsItemId || body.quantityOrdered == null) {
     res.status(400).json({ error: 'finishedGoodsItemId and quantityOrdered required' });
@@ -128,10 +122,7 @@ router.patch('/:id/status', async (req, res) => {
     res.status(400).json({ error: 'Valid status required' });
     return;
   }
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const existing = await prisma.productionOrder.findFirst({
@@ -152,10 +143,7 @@ router.patch('/:id/status', async (req, res) => {
 });
 
 router.post('/:id/complete', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required for manufacturing integration' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const qty = Number((req.body as { quantity?: number }).quantity);
   if (!Number.isFinite(qty) || qty <= 0) {
     res.status(400).json({ error: 'quantity must be a positive number' });

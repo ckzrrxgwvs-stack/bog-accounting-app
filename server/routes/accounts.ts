@@ -6,47 +6,15 @@ import { prisma } from '../lib/prisma';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import {
   getOrCreateInvestmentCompany,
-  investmentCoaForBook,
   INVESTMENT_BOOKS,
   resolveInvestmentBookFromQuery,
   type InvestmentBookId,
 } from '../services/investmentBooks';
 import { aggregatePostedJournalThrough, signedBalanceForAccount } from '../services/journalAggregates';
 import { writeAuditLog } from '../services/auditLog';
+import { requireDatabase } from '../lib/requireDatabase';
 
 const router = Router();
-
-let mockAccounts: {
-  id: string;
-  code: string;
-  name: string;
-  type: string;
-  balance: number;
-  description?: string | null;
-  isActive?: boolean;
-  allowPosting?: boolean;
-}[] = [
-  { id: '1', code: '1100', name: 'Cash', type: 'ASSET', balance: 0, isActive: true, allowPosting: true },
-  { id: '2', code: '1200', name: 'Accounts Receivable', type: 'ASSET', balance: 0, isActive: true, allowPosting: true },
-  { id: '3', code: '2100', name: 'Accounts Payable', type: 'LIABILITY', balance: 0, isActive: true, allowPosting: true },
-  { id: '4', code: '4100', name: 'Sales Revenue', type: 'REVENUE', balance: 0, isActive: true, allowPosting: true },
-  { id: '5', code: '5100', name: 'Cost of Goods Sold', type: 'COST_OF_GOODS_SOLD', balance: 0, isActive: true, allowPosting: true },
-];
-
-function mockInvestmentAccounts(bookId: InvestmentBookId, prefix: string) {
-  return investmentCoaForBook(bookId).map((row, i) => ({
-    id: `${prefix}-${i + 1}`,
-    code: row.code,
-    name: row.name,
-    type: row.type,
-    balance: 0,
-    isActive: true,
-    allowPosting: true,
-  }));
-}
-
-const mockInvestmentSmaAccounts = mockInvestmentAccounts('investment_sma', 'inv-sma');
-const mockInvestmentPersonalAccounts = mockInvestmentAccounts('investment_personal', 'inv-personal');
 
 function investmentBookId(req: { query: Record<string, unknown> }): InvestmentBookId | null {
   return resolveInvestmentBookFromQuery(req.query.book);
@@ -55,21 +23,9 @@ function investmentBookId(req: { query: Record<string, unknown> }): InvestmentBo
 async function resolveCompany(req: { query: Record<string, unknown> }) {
   const book = investmentBookId(req);
   if (book) {
-    if (!useDatabase()) return null;
     return getOrCreateInvestmentCompany(book);
   }
   return getOrCreateDefaultCompany();
-}
-
-function mockListForBook(req: { query: Record<string, unknown> }) {
-  const book = investmentBookId(req);
-  if (book === 'investment_personal') return [...mockInvestmentPersonalAccounts];
-  if (book === 'investment_sma') return [...mockInvestmentSmaAccounts];
-  return [...mockAccounts];
-}
-
-function useDatabase(): boolean {
-  return !!process.env.DATABASE_URL;
 }
 
 const accountTypes = new Set<string>(Object.values(AccountType));
@@ -90,17 +46,7 @@ router.get('/investment-books', async (_req, res) => {
 
 // Static paths before /:id
 router.get('/reports/trial-balance', async (req, res) => {
-  if (!useDatabase()) {
-    res.json({
-      accounts: mockAccounts,
-      totalDebits: 0,
-      totalCredits: 0,
-      isBalanced: true,
-      period: new Date().getMonth() + 1,
-      year: new Date().getFullYear(),
-    });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const company = await resolveCompany(req);
@@ -159,17 +105,7 @@ router.get('/', async (req, res) => {
   const { type, search, includeInactive } = req.query;
   const showInactive = includeInactive === '1' || includeInactive === 'true';
 
-  if (!useDatabase()) {
-    let list = mockListForBook(req);
-    if (!showInactive) list = list.filter((a) => a.isActive !== false);
-    if (type) list = list.filter((a) => a.type === type);
-    if (search) {
-      const s = String(search).toLowerCase();
-      list = list.filter((a) => a.name.toLowerCase().includes(s) || a.code.includes(s));
-    }
-    res.json({ accounts: list });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const company = await resolveCompany(req);
@@ -223,15 +159,7 @@ router.get('/', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  if (!useDatabase()) {
-    const account = mockAccounts.find((a) => a.id === req.params.id);
-    if (!account) {
-      res.status(404).json({ error: 'Account not found' });
-      return;
-    }
-    res.json({ account });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const company = await resolveCompany(req);
@@ -272,21 +200,7 @@ router.post('/', async (req, res) => {
     return;
   }
 
-  if (!useDatabase()) {
-    const account = {
-      id: String(mockAccounts.length + 1),
-      code: String(code),
-      name: String(name),
-      type: String(type),
-      balance: 0,
-      isActive: true,
-      allowPosting: true,
-      description: description ? String(description) : null,
-    };
-    mockAccounts = [...mockAccounts, account];
-    res.status(201).json({ account });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const company = await resolveCompany(req);
@@ -338,24 +252,7 @@ router.patch('/:id', async (req, res) => {
     return;
   }
 
-  if (!useDatabase()) {
-    const idx = mockAccounts.findIndex((a) => a.id === req.params.id);
-    if (idx === -1) {
-      res.status(404).json({ error: 'Account not found' });
-      return;
-    }
-    const prev = mockAccounts[idx];
-    const next = {
-      ...prev,
-      ...(typeof data.name === 'string' ? { name: data.name } : {}),
-      ...(data.description !== undefined ? { description: data.description as string | null } : {}),
-      ...(typeof data.isActive === 'boolean' ? { isActive: data.isActive } : {}),
-      ...(typeof data.allowPosting === 'boolean' ? { allowPosting: data.allowPosting } : {}),
-    };
-    mockAccounts = mockAccounts.map((a, i) => (i === idx ? next : a));
-    res.json({ account: { ...next, balance: 0 } });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const company = await resolveCompany(req);

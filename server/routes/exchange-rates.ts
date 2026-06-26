@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import { UserRoleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { requireAuthRoles } from '../middleware/requireAuthRoles';
 import {
@@ -53,10 +53,7 @@ const refreshers = [
 
 /** List stored rates (latest rows first). */
 router.get('/', ...readers, async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const companyId = await resolveCompanyId(req);
@@ -86,10 +83,7 @@ router.get('/', ...readers, async (req, res) => {
 
 /** Fetch daily (or historical) rates from Frankfurter and store. */
 router.post('/refresh', ...refreshers, async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   const body = req.body as {
     quoteCurrencies?: string[];
@@ -117,10 +111,7 @@ router.post('/refresh', ...refreshers, async (req, res) => {
 
 /** Convert amount using stored rates for the given calendar day (UTC). */
 router.get('/convert', ...readers, async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   const amount = Number(req.query.amount);
   const from = typeof req.query.from === 'string' ? req.query.from : '';

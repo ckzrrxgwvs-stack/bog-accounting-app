@@ -1,28 +1,13 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
 
 const router = Router();
 
-let mockCustomers: {
-  id: string;
-  code: string;
-  name: string;
-  email: string;
-  phone: string;
-  balance: number;
-}[] = [
-  { id: 'c1', code: 'C-001', name: 'Acme Corporation', email: 'ap@acme.com', phone: '(555) 111-2222', balance: 5200 },
-  { id: 'c2', code: 'C-002', name: 'TechStart Inc', email: 'billing@techstart.io', phone: '(555) 333-4444', balance: 0 },
-];
-
 router.get('/', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ customers: mockCustomers });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const rows = await prisma.customer.findMany({
@@ -45,15 +30,7 @@ router.get('/', async (_req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  if (!useDatabase()) {
-    const customer = mockCustomers.find((c) => c.id === req.params.id);
-    if (!customer) {
-      res.status(404).json({ error: 'Customer not found' });
-      return;
-    }
-    res.json({ customer });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const customer = await prisma.customer.findUnique({ where: { id: req.params.id } });
     if (!customer) {
@@ -77,24 +54,11 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
+  if (!requireDatabase(res)) return;
   const name = req.body.name ?? 'New Customer';
   const code = req.body.code ?? `C-${Date.now().toString(36).toUpperCase()}`;
   const email = req.body.email ?? '';
   const phone = req.body.phone ?? '';
-
-  if (!useDatabase()) {
-    const customer = {
-      id: `c-${Date.now()}`,
-      code,
-      name,
-      email,
-      phone,
-      balance: 0,
-    };
-    mockCustomers = [...mockCustomers, customer];
-    res.status(201).json({ customer });
-    return;
-  }
 
   try {
     const company = await getOrCreateDefaultCompany();
@@ -125,6 +89,7 @@ router.post('/', async (req, res) => {
 });
 
 router.patch('/:id', async (req, res) => {
+  if (!requireDatabase(res)) return;
   const body = req.body as Record<string, unknown>;
   const allowed = ['name', 'email', 'phone', 'code', 'isActive', 'address', 'city', 'state', 'zipCode', 'country'] as const;
   const data: Record<string, unknown> = {};
@@ -133,25 +98,6 @@ router.patch('/:id', async (req, res) => {
   }
   if (Object.keys(data).length === 0) {
     res.status(400).json({ error: 'No valid fields to update' });
-    return;
-  }
-
-  if (!useDatabase()) {
-    const idx = mockCustomers.findIndex((c) => c.id === req.params.id);
-    if (idx === -1) {
-      res.status(404).json({ error: 'Customer not found' });
-      return;
-    }
-    const prev = mockCustomers[idx];
-    const next = {
-      ...prev,
-      ...(typeof data.name === 'string' ? { name: data.name } : {}),
-      ...(typeof data.email === 'string' ? { email: data.email } : {}),
-      ...(typeof data.phone === 'string' ? { phone: data.phone } : {}),
-      ...(typeof data.code === 'string' ? { code: data.code } : {}),
-    };
-    mockCustomers = mockCustomers.map((c, i) => (i === idx ? next : c));
-    res.json({ customer: next });
     return;
   }
 

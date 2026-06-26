@@ -1,8 +1,5 @@
 /** True when API should persist to PostgreSQL via Prisma. */
 export function useDatabase(): boolean {
-  if (process.env.BOG_MOCK === '1' || process.env.BOG_MOCK === 'true') {
-    return false;
-  }
   return !!process.env.DATABASE_URL;
 }
 

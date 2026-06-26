@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
 
@@ -18,11 +18,6 @@ type ItemOut = {
   reorderPoint: number;
   value: number;
 };
-
-const mockItems: ItemOut[] = [
-  { id: '1', sku: 'PRD-001', name: 'Product A - Standard', category: 'Finished Goods', quantity: 150, unit: 'units', cost: 25, price: 50, reorderPoint: 50, value: 3750 },
-  { id: '2', sku: 'PRD-002', name: 'Product B - Premium', category: 'Finished Goods', quantity: 80, unit: 'units', cost: 40, price: 80, reorderPoint: 30, value: 3200 },
-];
 
 function mapItem(row: {
   id: string;
@@ -52,10 +47,7 @@ function mapItem(row: {
 }
 
 router.get('/', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ items: mockItems });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const company = await getOrCreateDefaultCompany();
@@ -71,6 +63,7 @@ router.get('/', async (_req, res) => {
 });
 
 router.post('/', async (req, res) => {
+  if (!requireDatabase(res)) return;
   const body = req.body as {
     sku?: string;
     name?: string;
@@ -82,23 +75,6 @@ router.post('/', async (req, res) => {
     reorderPoint?: number;
     description?: string;
   };
-
-  if (!useDatabase()) {
-    const item: ItemOut = {
-      id: String(mockItems.length + 1),
-      sku: body.sku ?? `SKU-${Date.now()}`,
-      name: body.name ?? 'New item',
-      category: body.category ?? null,
-      quantity: Number(body.quantityOnHand) || 0,
-      unit: body.unit ?? 'unit',
-      cost: Number(body.standardCost) || 0,
-      price: Number(body.listPrice) || 0,
-      reorderPoint: Number(body.reorderPoint) || 0,
-      value: (Number(body.quantityOnHand) || 0) * (Number(body.standardCost) || 0),
-    };
-    res.status(201).json({ item });
-    return;
-  }
 
   try {
     const company = await getOrCreateDefaultCompany();
@@ -138,15 +114,7 @@ router.post('/', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  if (!useDatabase()) {
-    const item = mockItems.find((i) => i.id === req.params.id);
-    if (!item) {
-      res.status(404).json({ error: 'Item not found' });
-      return;
-    }
-    res.json({ item });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const row = await prisma.inventoryItem.findFirst({
@@ -164,6 +132,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.patch('/:id', async (req, res) => {
+  if (!requireDatabase(res)) return;
   const body = req.body as Partial<{
     name: string;
     category: string;
@@ -174,26 +143,6 @@ router.patch('/:id', async (req, res) => {
     reorderPoint: number;
     isActive: boolean;
   }>;
-
-  if (!useDatabase()) {
-    const idx = mockItems.findIndex((i) => i.id === req.params.id);
-    if (idx === -1) {
-      res.status(404).json({ error: 'Item not found' });
-      return;
-    }
-    const prev = mockItems[idx];
-    const item: ItemOut = {
-      ...prev,
-      ...body,
-      quantity: body.quantityOnHand ?? prev.quantity,
-      cost: body.standardCost ?? prev.cost,
-      price: body.listPrice ?? prev.price,
-      reorderPoint: body.reorderPoint ?? prev.reorderPoint,
-      value: (body.quantityOnHand ?? prev.quantity) * (body.standardCost ?? prev.cost),
-    };
-    res.json({ item });
-    return;
-  }
 
   try {
     const data: Record<string, unknown> = {};

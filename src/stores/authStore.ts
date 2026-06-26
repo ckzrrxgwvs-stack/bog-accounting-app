@@ -3,7 +3,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User, UserRoleType } from '@/types';
-import { localDataService } from '@/services/localData';
 import { api } from '@/services/api';
 import { checkPermissionForRole, hasModuleAccessForRole } from '@/lib/permissions';
 
@@ -101,64 +100,14 @@ export const useAuthStore = create<AuthState>()(
             }
             throw new Error(
               apiRes.error === 'Login failed'
-                ? 'Invalid email or password, or user not seeded yet. Try admin@company.com / demo123 after API redeploy.'
+                ? 'Invalid email or password, or user not seeded yet. Run pnpm run go-live:local to bootstrap users.'
                 : (apiRes.error ??
-                    'Server login failed. Check Render logs for bog-accounting-api.')
+                    'Server login failed. Ensure pnpm run dev:program is running with DATABASE_URL set.')
             );
           }
 
-          const users = localDataService.getUsers();
-          const foundUser = users.find(
-            (u) => u.email.toLowerCase() === email.toLowerCase() && u.passwordHash === password
-          );
-
-          if (!foundUser) {
-            set({ isLoading: false });
-            throw new Error('Invalid email or password');
-          }
-
-          if (!foundUser.isActive) {
-            set({ isLoading: false });
-            throw new Error('Account is inactive. Contact your administrator.');
-          }
-
-          const user: User = {
-            id: foundUser.id,
-            email: foundUser.email,
-            firstName: foundUser.firstName,
-            lastName: foundUser.lastName,
-            role: foundUser.role as UserRoleType,
-            mfaEnabled: foundUser.mfaEnabled,
-            isActive: foundUser.isActive,
-            companyId: '1',
-            createdAt: new Date(foundUser.createdAt),
-            updatedAt: new Date(),
-          };
-
-          localDataService.updateUser(foundUser.id, { lastLoginAt: new Date().toISOString() });
-
-          const sessionToken = `token-${foundUser.id}-${Date.now()}`;
-          persistApiToken(sessionToken);
-
-          if (foundUser.mfaEnabled) {
-            set({
-              user,
-              token: sessionToken,
-              isAuthenticated: true,
-              isLoading: false,
-              mfaRequired: true,
-              mfaVerified: false,
-            });
-          } else {
-            set({
-              user,
-              token: sessionToken,
-              isAuthenticated: true,
-              isLoading: false,
-              mfaRequired: false,
-              mfaVerified: true,
-            });
-          }
+          set({ isLoading: false });
+          throw new Error('API login required. Run pnpm run dev:program with a configured database.');
         } catch (error) {
           set({ isLoading: false });
           throw error;

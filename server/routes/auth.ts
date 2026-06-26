@@ -5,7 +5,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 
 const router = Router();
 
@@ -18,10 +18,7 @@ router.post('/login', async (req, res) => {
     return;
   }
 
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'DATABASE_URL required for API authentication' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const user = await prisma.user.findFirst({
@@ -77,10 +74,7 @@ router.post('/login', async (req, res) => {
   } catch (e) {
     console.error(e);
     const msg = e instanceof Error ? e.message : 'Login failed';
-    if (!useDatabase()) {
-      res.status(503).json({ error: 'DATABASE_URL not configured on API server' });
-      return;
-    }
+    if (!requireDatabase(res)) return;
     res.status(500).json({ error: 'Login failed', hint: msg.slice(0, 200) });
   }
 });

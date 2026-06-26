@@ -1,28 +1,13 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
 
 const router = Router();
 
-let mockVendors: {
-  id: string;
-  code: string;
-  name: string;
-  email: string;
-  phone: string;
-  balance: number;
-}[] = [
-  { id: 'v1', code: 'V-001', name: 'Office Depot', email: 'ap@officedepot.com', phone: '(555) 100-2000', balance: 1250 },
-  { id: 'v2', code: 'V-002', name: 'Tech Solutions', email: 'invoices@techsol.com', phone: '(555) 200-3000', balance: 3500 },
-];
-
 router.get('/', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ vendors: mockVendors });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const rows = await prisma.vendor.findMany({
@@ -46,15 +31,7 @@ router.get('/', async (_req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  if (!useDatabase()) {
-    const vendor = mockVendors.find((v) => v.id === req.params.id);
-    if (!vendor) {
-      res.status(404).json({ error: 'Vendor not found' });
-      return;
-    }
-    res.json({ vendor });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const vendor = await prisma.vendor.findUnique({ where: { id: req.params.id } });
     if (!vendor) {
@@ -78,24 +55,11 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
+  if (!requireDatabase(res)) return;
   const name = req.body.name ?? 'New Vendor';
   const code = req.body.code ?? `V-${Date.now().toString(36).toUpperCase()}`;
   const email = req.body.email ?? '';
   const phone = req.body.phone ?? '';
-
-  if (!useDatabase()) {
-    const vendor = {
-      id: `v-${Date.now()}`,
-      code,
-      name,
-      email,
-      phone,
-      balance: 0,
-    };
-    mockVendors = [...mockVendors, vendor];
-    res.status(201).json({ vendor });
-    return;
-  }
 
   try {
     const company = await getOrCreateDefaultCompany();
@@ -126,6 +90,7 @@ router.post('/', async (req, res) => {
 });
 
 router.patch('/:id', async (req, res) => {
+  if (!requireDatabase(res)) return;
   const body = req.body as Record<string, unknown>;
   const allowed = [
     'name',
@@ -147,25 +112,6 @@ router.patch('/:id', async (req, res) => {
   }
   if (Object.keys(data).length === 0) {
     res.status(400).json({ error: 'No valid fields to update' });
-    return;
-  }
-
-  if (!useDatabase()) {
-    const idx = mockVendors.findIndex((v) => v.id === req.params.id);
-    if (idx === -1) {
-      res.status(404).json({ error: 'Vendor not found' });
-      return;
-    }
-    const prev = mockVendors[idx];
-    const next = {
-      ...prev,
-      ...(typeof data.name === 'string' ? { name: data.name } : {}),
-      ...(typeof data.email === 'string' ? { email: data.email } : {}),
-      ...(typeof data.phone === 'string' ? { phone: data.phone } : {}),
-      ...(typeof data.code === 'string' ? { code: data.code } : {}),
-    };
-    mockVendors = mockVendors.map((v, i) => (i === idx ? next : v));
-    res.json({ vendor: next });
     return;
   }
 

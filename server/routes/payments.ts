@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { PaymentMethod, PaymentStatus, AuditAction } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
 import { postPaymentToGeneralLedger } from '../services/paymentGlPost';
@@ -15,35 +15,6 @@ import { convertCurrencyAmount } from '../services/exchangeRateService';
 const router = Router();
 
 type CompanyFx = { id: string; currency: string; useMultiCurrency: boolean };
-
-const mockPayments = [
-  {
-    id: 'p1',
-    date: '2026-04-20',
-    amount: 5200,
-    currency: 'USD',
-    method: 'ACH',
-    reference: 'PMT-001',
-    type: 'AR' as const,
-    status: 'PROCESSED',
-    appliedAmount: 5200,
-    glJournalEntryId: null,
-    glPostedAt: null,
-  },
-  {
-    id: 'p2',
-    date: '2026-04-18',
-    amount: 2200,
-    currency: 'USD',
-    method: 'WIRE_TRANSFER',
-    reference: 'PMT-002',
-    type: 'AP' as const,
-    status: 'PROCESSED',
-    appliedAmount: 2200,
-    glJournalEntryId: null,
-    glPostedAt: null,
-  },
-];
 
 function parsePaymentMethod(raw: string | undefined): PaymentMethod {
   if (!raw) return 'CHECK';
@@ -114,18 +85,8 @@ async function enrichPaymentRow(
 }
 
 router.get('/', async (req, res) => {
+  if (!requireDatabase(res)) return;
   const { type } = req.query;
-
-  if (!useDatabase()) {
-    let list = [...mockPayments].map((p) => ({
-      ...p,
-      functionalAmount: p.amount,
-      fxMissing: false,
-    }));
-    if (type === 'AR' || type === 'AP') list = list.filter((p) => p.type === type);
-    res.json({ payments: list });
-    return;
-  }
 
   try {
     const company = await getOrCreateDefaultCompany();
@@ -163,22 +124,7 @@ router.post('/', async (req, res) => {
     currency?: string;
   };
 
-  if (!useDatabase()) {
-    const rawAmt = Number(body.amount) || 0;
-    const payment = {
-      id: `p-${Date.now()}`,
-      date: body.date ?? new Date().toISOString().slice(0, 10),
-      amount: rawAmt,
-      currency: 'USD',
-      functionalAmount: rawAmt,
-      fxMissing: false,
-      method: parsePaymentMethod(body.method),
-      reference: body.reference ?? '',
-      type: body.type ?? 'AR',
-    };
-    res.status(201).json({ payment });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const company = await getOrCreateDefaultCompany();
@@ -295,10 +241,7 @@ router.post(
   requireGlPostRole,
   requirePaymentGlClerkScope,
   async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required for GL posting' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   const company = await getOrCreateDefaultCompany();
   const userId = (req as Request & { glAuth?: { sub?: string } }).glAuth?.sub ?? null;
@@ -340,15 +283,7 @@ router.post(
 });
 
 router.get('/:id', async (req, res) => {
-  if (!useDatabase()) {
-    const p = mockPayments.find((x) => x.id === req.params.id);
-    if (!p) {
-      res.status(404).json({ error: 'Payment not found' });
-      return;
-    }
-    res.json({ payment: p });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const row = await prisma.payment.findFirst({

@@ -249,14 +249,13 @@ export function MainLayout() {
           )}
           {serverMode === 'offline' && (
             <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
-              API offline — showing browser demo data. Run <code className="font-mono">pnpm run dev:program</code> for
-              real books.
+              API offline — start <code className="font-mono">pnpm run dev:program</code> with Docker Postgres for live books.
             </div>
           )}
           {serverMode === 'demo' && (
             <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
-              Mock API mode — connect <code className="font-mono">DATABASE_URL</code> and run{' '}
-              <code className="font-mono">pnpm run go-live:local</code> for persisted accounting.
+              Database not connected — run <code className="font-mono">pnpm run go-live:local</code> then{' '}
+              <code className="font-mono">pnpm run dev:program</code>. BOG no longer shows sample financial data.
             </div>
           )}
           <Outlet />

@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { EntryStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { resolveCompanyFromRequest } from '../lib/resolveCompany';
+import { requireDatabase } from '../lib/requireDatabase';
 import {
   getOrCreateInvestmentCompany,
   resolveInvestmentBookFromSourceType,
@@ -31,21 +31,6 @@ type JournalEntryOut = {
   lines: JournalLineOut[];
   createdAt: string;
 };
-
-let mockEntries: JournalEntryOut[] = [
-  {
-    id: 'je-1',
-    entryNumber: '1001',
-    date: '2026-04-15',
-    description: 'Record monthly rent',
-    status: 'POSTED',
-    createdAt: '2026-04-15T10:00:00.000Z',
-    lines: [
-      { accountId: '12', accountCode: '6200', accountName: 'Rent Expense', debit: 17000, credit: 0 },
-      { accountId: '1', accountCode: '1100', accountName: 'Cash', debit: 0, credit: 17000 },
-    ],
-  },
-];
 
 function requireJournalApproval(): boolean {
   return process.env.JOURNAL_REQUIRE_APPROVAL === '1' || process.env.JOURNAL_REQUIRE_APPROVAL === 'true';
@@ -85,14 +70,7 @@ function serializeJe(je: {
 router.get('/', async (req, res) => {
   const { startDate, endDate, status } = req.query;
 
-  if (!useDatabase()) {
-    let list = [...mockEntries];
-    if (status) list = list.filter((e) => e.status === status);
-    if (startDate) list = list.filter((e) => e.date >= String(startDate));
-    if (endDate) list = list.filter((e) => e.date <= String(endDate));
-    res.json({ journalEntries: list });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const company = await resolveCompanyFromRequest(req);
@@ -136,29 +114,7 @@ router.post('/', async (req, res) => {
     lines?: { accountId: string; debit?: number; credit?: number }[];
   };
 
-  if (!useDatabase()) {
-    const id = `je-${mockEntries.length + 1}`;
-    const entry: JournalEntryOut = {
-      id,
-      entryNumber: String(1000 + mockEntries.length + 1),
-      date: body.date ?? new Date().toISOString().slice(0, 10),
-      description: body.description ?? '',
-      status: 'DRAFT',
-      lines: Array.isArray(body.lines)
-        ? body.lines.map((l) => ({
-            accountId: l.accountId,
-            accountCode: '',
-            accountName: '',
-            debit: Number(l.debit) || 0,
-            credit: Number(l.credit) || 0,
-          }))
-        : [],
-      createdAt: new Date().toISOString(),
-    };
-    mockEntries = [...mockEntries, entry];
-    res.status(201).json({ journalEntry: entry });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const investmentBook = resolveInvestmentBookFromSourceType(body.sourceType);
@@ -220,10 +176,7 @@ router.post('/', async (req, res) => {
 
 /** DRAFT → PENDING_APPROVAL */
 router.post('/:id/submit', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(400).json({ error: 'Submit for approval requires database' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const row = await prisma.journalEntry.findFirst({
       where: { id: req.params.id },
@@ -250,10 +203,7 @@ router.post('/:id/submit', async (req, res) => {
 
 /** PENDING_APPROVAL → APPROVED */
 router.post('/:id/approve', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(400).json({ error: 'Approval requires database' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const row = await prisma.journalEntry.findFirst({
       where: { id: req.params.id },
@@ -284,17 +234,7 @@ router.post('/:id/approve', async (req, res) => {
 });
 
 router.post('/:id/post', async (req, res) => {
-  if (!useDatabase()) {
-    const idx = mockEntries.findIndex((e) => e.id === req.params.id);
-    if (idx === -1) {
-      res.status(404).json({ error: 'Journal entry not found' });
-      return;
-    }
-    const updated = { ...mockEntries[idx], status: 'POSTED' };
-    mockEntries = mockEntries.map((e) => (e.id === updated.id ? updated : e));
-    res.json({ journalEntry: updated });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const require = requireJournalApproval();
@@ -365,20 +305,11 @@ router.post('/:id/post', async (req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  if (!useDatabase()) {
-    const entry = mockEntries.find((e) => e.id === req.params.id);
-    if (!entry) {
-      res.status(404).json({ error: 'Journal entry not found' });
-      return;
-    }
-    res.json({ journalEntry: entry });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
-    const company = await getOrCreateDefaultCompany();
     const row = await prisma.journalEntry.findFirst({
-      where: { id: req.params.id, companyId: company.id },
+      where: { id: req.params.id },
       include: { lines: { include: { account: true } } },
     });
     if (!row) {

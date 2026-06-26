@@ -94,14 +94,14 @@ export function Settings() {
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [companyLoadError, setCompanyLoadError] = useState<string | null>(null);
   const [companySettings, setCompanySettings] = useState<CompanySettings>({
-    name: 'Acme Corporation',
-    legalName: 'Acme Corporation Inc.',
+    name: '',
+    legalName: '',
     country: 'US',
     currency: 'USD',
-    taxId: '12-3456789',
-    email: 'admin@acme.com',
-    phone: '(555) 123-4567',
-    address: '123 Main Street, Suite 100',
+    taxId: '',
+    email: '',
+    phone: '',
+    address: '',
     useInventory: true,
     usePayroll: true,
     useMultiCurrency: false,
@@ -982,7 +982,7 @@ export function Settings() {
             <h3 className="font-semibold text-black">Database</h3>
           </div>
           <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">
-            <Check size={12} className="mr-1" /> Demo Mode
+            <Check size={12} className="mr-1" /> Live ledger
           </span>
         </div>
 
@@ -1091,7 +1091,7 @@ export function Settings() {
             <h3 className="font-semibold text-black">AI CPA Assistant</h3>
           </div>
           <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">
-            <Check size={12} className="mr-1" /> Demo Mode
+            <Check size={12} className="mr-1" /> Live ledger
           </span>
         </div>
 

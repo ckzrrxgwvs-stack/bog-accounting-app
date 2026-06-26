@@ -3,7 +3,7 @@ import type { Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import { UserRoleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { formatRegistrationDisplay } from '../lib/registrationCode';
 import { requireAuthRoles } from '../middleware/requireAuthRoles';
 import {
@@ -35,10 +35,7 @@ const activateLimiter = rateLimit({
 
 /** Public: redeem product-style registration code → creates tenant company + COA. */
 router.post('/activate', activateLimiter, async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required for activation' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   const body = req.body as { code?: string; organizationName?: string };
   const code = typeof body.code === 'string' ? body.code : '';
@@ -73,10 +70,7 @@ const issuerChain = [
 
 /** Issue a new registration code for a signed customer (tracked record). */
 router.post('/issue', ...issuerChain, async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   const authRole = (req as Request & { authJwt?: { role?: string } }).authJwt?.role ?? '';
   if (!issuerRoleAllowed(authRole)) {
@@ -118,10 +112,7 @@ router.post('/issue', ...issuerChain, async (req, res) => {
 
 /** List all issued registrations (vendor-side CRM trail). */
 router.get('/', ...issuerChain, async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   const authRole = (req as Request & { authJwt?: { role?: string } }).authJwt?.role ?? '';
   if (!issuerRoleAllowed(authRole)) {
@@ -158,10 +149,7 @@ router.get('/', ...issuerChain, async (req, res) => {
 });
 
 router.post('/:id/revoke', ...issuerChain, async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   const authRole = (req as Request & { authJwt?: { role?: string } }).authJwt?.role ?? '';
   if (!issuerRoleAllowed(authRole)) {

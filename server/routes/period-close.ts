@@ -1,15 +1,12 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 
 const router = Router();
 
 router.get('/closed', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ periods: [] });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const rows = await prisma.closedPeriod.findMany({
@@ -39,10 +36,7 @@ router.post('/close', async (req, res) => {
     res.status(400).json({ error: 'year and period (1–12) required' });
     return;
   }
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const row = await prisma.closedPeriod.create({
@@ -75,10 +69,7 @@ router.post('/reopen', async (req, res) => {
     res.status(400).json({ error: 'year and period (1–12) required' });
     return;
   }
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     await prisma.closedPeriod.delete({

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
 
@@ -9,10 +9,7 @@ const router = Router();
 
 /** List BOMs (one row per finished good) */
 router.get('/', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ boms: [] });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const rows = await prisma.bomHeader.findMany({
@@ -52,10 +49,7 @@ router.post('/', async (req, res) => {
     notes?: string;
   };
 
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   if (!body.finishedGoodsItemId || !Array.isArray(body.lines) || body.lines.length === 0) {
     res.status(400).json({ error: 'finishedGoodsItemId and lines[] required' });

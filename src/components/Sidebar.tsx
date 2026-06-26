@@ -284,13 +284,14 @@ export function Sidebar({ className = '' }: SidebarProps) {
           </button>
         </div>
 
-        {/* Demo Mode Notice */}
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
-          <p className="text-xs text-amber-700 font-medium">Demo Mode Active</p>
-          <p className="text-xs text-amber-600 mt-0.5">
-            Data resets on refresh. Connect a database for production.
-          </p>
-        </div>
+        {serverMode !== 'database' && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <p className="text-xs text-amber-700 font-medium">Database required</p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              Connect Postgres via go-live:local. No sample ledger data is shown.
+            </p>
+          </div>
+        )}
       </div>
     </aside>
   );

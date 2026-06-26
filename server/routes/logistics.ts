@@ -16,7 +16,7 @@ import {
   ShipmentStatus,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
 import { buildBarcodeSvg } from '../lib/barcodeSvg';
@@ -28,10 +28,7 @@ function docNum(prefix: string): string {
 }
 
 router.get('/carriers', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ carriers: [] });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const rows = await prisma.carrier.findMany({
@@ -46,10 +43,7 @@ router.get('/carriers', async (_req, res) => {
 });
 
 router.post('/carriers', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as {
     name?: string;
     scacCode?: string;
@@ -85,10 +79,7 @@ router.post('/carriers', async (req, res) => {
 });
 
 router.get('/warehouse-locations', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ locations: [] });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const rows = await prisma.warehouseLocation.findMany({
@@ -103,10 +94,7 @@ router.get('/warehouse-locations', async (_req, res) => {
 });
 
 router.post('/warehouse-locations', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as { code?: string; name?: string; zone?: string; aisle?: string; bin?: string };
   if (!body.code?.trim() || !body.name?.trim()) {
     res.status(400).json({ error: 'code and name required' });
@@ -133,10 +121,7 @@ router.post('/warehouse-locations', async (req, res) => {
 });
 
 router.get('/customer-shipping/:customerId', async (req, res) => {
-  if (!useDatabase()) {
-    res.json({ profile: null });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const profile = await prisma.customerShippingProfile.findFirst({
@@ -151,10 +136,7 @@ router.get('/customer-shipping/:customerId', async (req, res) => {
 });
 
 router.put('/customer-shipping/:customerId', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as {
     defaultCarrierId?: string | null;
     defaultShipFromLocationId?: string | null;
@@ -202,10 +184,7 @@ router.put('/customer-shipping/:customerId', async (req, res) => {
 });
 
 router.get('/lots', async (req, res) => {
-  if (!useDatabase()) {
-    res.json({ lots: [] });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const itemId = typeof req.query.itemId === 'string' ? req.query.itemId : undefined;
   try {
     const company = await getOrCreateDefaultCompany();
@@ -229,10 +208,7 @@ router.get('/lots', async (req, res) => {
 });
 
 router.post('/lots', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as {
     inventoryItemId?: string;
     lotNumber?: string;
@@ -282,10 +258,7 @@ router.post('/lots', async (req, res) => {
 });
 
 router.patch('/lots/:id', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const existing = await prisma.inventoryLot.findFirst({
@@ -319,10 +292,7 @@ router.patch('/lots/:id', async (req, res) => {
 });
 
 router.get('/serials', async (req, res) => {
-  if (!useDatabase()) {
-    res.json({ serials: [] });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const itemId = typeof req.query.itemId === 'string' ? req.query.itemId : undefined;
   try {
     const company = await getOrCreateDefaultCompany();
@@ -340,10 +310,7 @@ router.get('/serials', async (req, res) => {
 });
 
 router.post('/serials', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as {
     inventoryItemId?: string;
     inventoryLotId?: string | null;
@@ -378,10 +345,7 @@ router.post('/serials', async (req, res) => {
 });
 
 router.get('/shipments', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ shipments: [] });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const rows = await prisma.shipment.findMany({
@@ -398,10 +362,7 @@ router.get('/shipments', async (_req, res) => {
 });
 
 router.post('/shipments', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as {
     customerId?: string;
     salesOrderId?: string | null;
@@ -483,10 +444,7 @@ router.post('/shipments', async (req, res) => {
 });
 
 router.get('/shipments/:id', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(404).json({ error: 'Not found' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const row = await prisma.shipment.findFirst({
@@ -513,10 +471,7 @@ router.get('/shipments/:id', async (req, res) => {
 });
 
 router.patch('/shipments/:id', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const existing = await prisma.shipment.findFirst({
@@ -562,10 +517,7 @@ router.patch('/shipments/:id', async (req, res) => {
 });
 
 router.post('/shipments/:id/events', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as {
     eventType?: ShipmentEventType;
     source?: string;
@@ -602,10 +554,7 @@ router.post('/shipments/:id/events', async (req, res) => {
 });
 
 router.post('/shipments/:id/documents', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as {
     documentType?: ShipmentDocumentType;
     documentNumber?: string;
@@ -646,10 +595,7 @@ router.post('/shipments/:id/documents', async (req, res) => {
 
 /** Creates common compliance document placeholders (BOL, packing slip/list, commercial invoice, ASN, label record). */
 router.post('/shipments/:id/issue-standard-docs', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const sh = await prisma.shipment.findFirst({
@@ -688,10 +634,7 @@ router.post('/shipments/:id/issue-standard-docs', async (req, res) => {
 });
 
 router.get('/asn', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ asns: [] });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const rows = await prisma.inboundAsn.findMany({
@@ -708,10 +651,7 @@ router.get('/asn', async (_req, res) => {
 });
 
 router.post('/asn', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as {
     vendorId?: string;
     purchaseOrderId?: string | null;
@@ -753,10 +693,7 @@ router.post('/asn', async (req, res) => {
 });
 
 router.patch('/asn/:id', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as { status?: InboundAsnStatus; receivedJson?: unknown };
   try {
     const company = await getOrCreateDefaultCompany();
@@ -781,10 +718,7 @@ router.patch('/asn/:id', async (req, res) => {
 });
 
 router.get('/rma', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ rmas: [] });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const rows = await prisma.rmaHeader.findMany({
@@ -801,10 +735,7 @@ router.get('/rma', async (_req, res) => {
 });
 
 router.post('/rma', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as {
     customerId?: string;
     salesOrderId?: string | null;
@@ -853,10 +784,7 @@ router.post('/rma', async (req, res) => {
 });
 
 router.patch('/rma/:id', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as {
     status?: RmaStatus;
     authorizedAt?: string | null;
@@ -892,10 +820,7 @@ router.patch('/rma/:id', async (req, res) => {
 });
 
 router.get('/freight-charges', async (req, res) => {
-  if (!useDatabase()) {
-    res.json({ freightCharges: [] });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const shipmentId = typeof req.query.shipmentId === 'string' ? req.query.shipmentId : undefined;
   try {
     const company = await getOrCreateDefaultCompany();
@@ -913,10 +838,7 @@ router.get('/freight-charges', async (req, res) => {
 });
 
 router.post('/freight-charges', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as {
     shipmentId?: string | null;
     carrierId?: string | null;
@@ -961,10 +883,7 @@ router.post('/freight-charges', async (req, res) => {
 });
 
 router.post('/barcodes', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as {
     symbology?: BarcodeSymbology;
     payload?: string;
@@ -1001,10 +920,7 @@ router.post('/barcodes', async (req, res) => {
 });
 
 router.get('/barcodes/:id', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(404).json({ error: 'Not found' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const row = await prisma.logisticsBarcode.findFirst({
@@ -1022,10 +938,7 @@ router.get('/barcodes/:id', async (req, res) => {
 });
 
 router.get('/barcodes/:id/svg', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).send('Database required');
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const row = await prisma.logisticsBarcode.findFirst({

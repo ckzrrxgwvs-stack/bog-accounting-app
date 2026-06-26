@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/services/api';
-import { Mail, Lock, Eye, EyeOff, Shield, Sparkles, ArrowRight, Check, KeyRound } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Shield, ArrowRight, Check, KeyRound } from 'lucide-react';
 import { CubeLogoMark } from '@/components/Logo';
 
 const isProductionApi = Boolean(import.meta.env.VITE_API_URL);
@@ -73,12 +73,6 @@ export function Login() {
       setError('Invalid MFA code');
     }
   };
-
-  const demoAccounts = [
-    { email: 'admin@company.com', role: 'President', badge: 'Full Access' },
-    { email: 'cfo@company.com', role: 'CFO', badge: 'Finance' },
-    { email: 'accountant@company.com', role: 'Accountant', badge: 'Standard' },
-  ];
 
   if (mfaRequired) {
     return (
@@ -168,25 +162,18 @@ export function Login() {
             <p className="text-gray-500">Books On The Go — sign in to your ledger</p>
           </div>
 
-          {/* Demo Mode Banner — local dev only */}
-          {!isProductionApi && (
-          <div className="mb-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl border border-amber-100">
-            <div className="flex items-center">
-              <div className="p-2 bg-amber-100 rounded-xl mr-3">
-                <Sparkles size={18} className="text-amber-600" />
-              </div>
-              <div>
-                <p className="font-semibold text-amber-800 text-sm">Demo Mode Active</p>
-                <p className="text-xs text-amber-600">Use any demo account below</p>
-              </div>
-            </div>
-          </div>
-          )}
-          {isProductionApi && (
+          {isProductionApi ? (
           <div className="mb-6 p-4 bg-gradient-to-r from-sky-50 to-blue-50 rounded-2xl border border-sky-100">
-            <p className="font-semibold text-sky-900 text-sm">Production sign-in</p>
+            <p className="font-semibold text-sky-900 text-sm">Sign in</p>
             <p className="text-xs text-sky-700 mt-1">
-              Use <strong>admin@company.com</strong> / <strong>demo123</strong> after the API database is configured on Render.
+              Use credentials provisioned for your organization. Contact your administrator if you need access.
+            </p>
+          </div>
+          ) : (
+          <div className="mb-6 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-100">
+            <p className="font-semibold text-emerald-900 text-sm">Local program</p>
+            <p className="text-xs text-emerald-700 mt-1">
+              Run <code className="font-mono">pnpm run go-live:local</code> then sign in with bootstrap users from your .env.
             </p>
           </div>
           )}
@@ -303,37 +290,6 @@ export function Login() {
             </div>
           </div>
 
-          {/* Demo Accounts Quick Access */}
-          <div className="mt-6 pt-6 border-t border-gray-100">
-            <p className="text-xs text-gray-400 text-center mb-3">Quick demo access</p>
-            <div className="space-y-2">
-              {demoAccounts.map((account) => (
-                <button
-                  key={account.email}
-                  type="button"
-                  onClick={() => {
-                    setEmail(account.email);
-                    setPassword('demo123');
-                  }}
-                  className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group"
-                >
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-black text-white rounded-full flex items-center justify-center text-xs font-bold mr-3">
-                      {account.email.split('@')[0][0].toUpperCase()}
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-black">{account.role}</p>
-                      <p className="text-xs text-gray-400">{account.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded-full">{account.badge}</span>
-                    <ArrowRight size={14} className="text-gray-300 group-hover:text-black transition-colors" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Footer */}

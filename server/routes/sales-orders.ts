@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Prisma, SalesOrderStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
 import { shipSalesOrderAndBill } from '../services/erpAccountingIntegration';
@@ -21,21 +21,6 @@ function readIdempotencyKey(req: { headers: Record<string, unknown>; body?: unkn
 }
 
 const router = Router();
-
-type MockSo = {
-  id: string;
-  soNumber: string;
-  customerId: string;
-  customerName: string;
-  orderDate: string;
-  requestedShipDate: string | null;
-  status: SalesOrderStatus;
-  currency: string;
-  total: number;
-  notes: string | null;
-};
-
-let mockSalesOrders: MockSo[] = [];
 
 function mapSo(r: {
   id: string;
@@ -64,10 +49,7 @@ function mapSo(r: {
 }
 
 router.get('/', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ salesOrders: mockSalesOrders });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const rows = await prisma.salesOrder.findMany({
@@ -83,15 +65,7 @@ router.get('/', async (_req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  if (!useDatabase()) {
-    const row = mockSalesOrders.find((x) => x.id === req.params.id);
-    if (!row) {
-      res.status(404).json({ error: 'Not found' });
-      return;
-    }
-    res.json({ salesOrder: { ...row, lines: [] } });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const row = await prisma.salesOrder.findFirst({
       where: { id: req.params.id },
@@ -179,25 +153,7 @@ router.post('/', async (req, res) => {
     typeof body.customerPurchaseOrderRef === 'string' ? body.customerPurchaseOrderRef.trim() : '';
   const customerPurchaseOrderRef = crefRaw.length > 0 ? crefRaw : null;
 
-  if (!useDatabase()) {
-    const id = `so-mock-${Date.now()}`;
-    const soNumber = `SO-${Date.now()}`;
-    const row: MockSo = {
-      id,
-      soNumber,
-      customerId: body.customerId,
-      customerName: 'Customer',
-      orderDate: new Date().toISOString().slice(0, 10),
-      requestedShipDate: body.requestedShipDate ?? null,
-      status: 'DRAFT',
-      currency,
-      total,
-      notes: body.notes ?? null,
-    };
-    mockSalesOrders = [row, ...mockSalesOrders];
-    res.status(201).json({ salesOrder: row });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   const idemRaw = readIdempotencyKey(req);
 
@@ -434,16 +390,7 @@ router.patch('/:id/status', async (req, res) => {
     return;
   }
 
-  if (!useDatabase()) {
-    const idx = mockSalesOrders.findIndex((x) => x.id === req.params.id);
-    if (idx < 0) {
-      res.status(404).json({ error: 'Not found' });
-      return;
-    }
-    mockSalesOrders[idx] = { ...mockSalesOrders[idx], status };
-    res.json({ salesOrder: mockSalesOrders[idx] });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const updated = await prisma.salesOrder.update({
@@ -459,10 +406,7 @@ router.patch('/:id/status', async (req, res) => {
 
 /** Ship against a CONFIRMED / PARTIALLY_SHIPPED SO — inventory COGS move + AR invoice. */
 router.post('/:id/ship', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required for order-to-cash shipment' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as { shipments?: { lineId: string; quantity: number }[] };
   if (!Array.isArray(body.shipments) || body.shipments.length === 0) {
     res.status(400).json({ error: 'shipments: [{ lineId, quantity }, ...] required' });

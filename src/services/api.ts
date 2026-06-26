@@ -103,6 +103,15 @@ class ApiClient {
     });
   }
 
+  async getDashboardFinancials(params?: { month?: number; year?: number; book?: string }) {
+    const q = new URLSearchParams();
+    if (params?.month != null) q.set('month', String(params.month));
+    if (params?.year != null) q.set('year', String(params.year));
+    if (params?.book) q.set('book', params.book);
+    const qs = q.toString();
+    return this.request(`/dashboard/financials${qs ? `?${qs}` : ''}`);
+  }
+
   async getDashboardSummary() {
     return this.request<{
       overdueArCount: number;

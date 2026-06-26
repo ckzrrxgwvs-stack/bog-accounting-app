@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Prisma, PurchaseOrderStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { useDatabase } from '../lib/dbMode';
+import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { dec } from '../lib/serialize';
 import { receivePurchaseOrderReceipt } from '../services/erpAccountingIntegration';
@@ -21,21 +21,6 @@ function readIdempotencyKey(req: { headers: Record<string, unknown>; body?: unkn
 }
 
 const router = Router();
-
-type MockPo = {
-  id: string;
-  poNumber: string;
-  vendorId: string;
-  vendorName: string;
-  orderDate: string;
-  expectedDate: string | null;
-  status: PurchaseOrderStatus;
-  currency: string;
-  total: number;
-  notes: string | null;
-};
-
-let mockPurchaseOrders: MockPo[] = [];
 
 function mapPo(r: {
   id: string;
@@ -64,10 +49,7 @@ function mapPo(r: {
 }
 
 router.get('/', async (_req, res) => {
-  if (!useDatabase()) {
-    res.json({ purchaseOrders: mockPurchaseOrders });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
     const rows = await prisma.purchaseOrder.findMany({
@@ -83,15 +65,7 @@ router.get('/', async (_req, res) => {
 });
 
 router.get('/:id', async (req, res) => {
-  if (!useDatabase()) {
-    const row = mockPurchaseOrders.find((x) => x.id === req.params.id);
-    if (!row) {
-      res.status(404).json({ error: 'Not found' });
-      return;
-    }
-    res.json({ purchaseOrder: { ...row, lines: [] } });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   try {
     const row = await prisma.purchaseOrder.findFirst({
       where: { id: req.params.id },
@@ -178,25 +152,7 @@ router.post('/', async (req, res) => {
   const srefRaw = typeof body.supplierReference === 'string' ? body.supplierReference.trim() : '';
   const supplierReference = srefRaw.length > 0 ? srefRaw : null;
 
-  if (!useDatabase()) {
-    const id = `po-mock-${Date.now()}`;
-    const poNumber = `PO-${Date.now()}`;
-    const row: MockPo = {
-      id,
-      poNumber,
-      vendorId: body.vendorId,
-      vendorName: 'Vendor',
-      orderDate: new Date().toISOString().slice(0, 10),
-      expectedDate: body.expectedDate ?? null,
-      status: 'DRAFT',
-      currency,
-      total,
-      notes: body.notes ?? null,
-    };
-    mockPurchaseOrders = [row, ...mockPurchaseOrders];
-    res.status(201).json({ purchaseOrder: row });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   const idemRaw = readIdempotencyKey(req);
 
@@ -425,16 +381,7 @@ router.patch('/:id/status', async (req, res) => {
     return;
   }
 
-  if (!useDatabase()) {
-    const idx = mockPurchaseOrders.findIndex((x) => x.id === req.params.id);
-    if (idx < 0) {
-      res.status(404).json({ error: 'Not found' });
-      return;
-    }
-    mockPurchaseOrders[idx] = { ...mockPurchaseOrders[idx], status };
-    res.json({ purchaseOrder: mockPurchaseOrders[idx] });
-    return;
-  }
+  if (!requireDatabase(res)) return;
 
   try {
     const updated = await prisma.purchaseOrder.update({
@@ -450,10 +397,7 @@ router.patch('/:id/status', async (req, res) => {
 
 /** Receive goods against an APPROVED / PARTIALLY_RECEIVED PO — inventory + AP invoice (erpAccountingIntegration). */
 router.post('/:id/receive', async (req, res) => {
-  if (!useDatabase()) {
-    res.status(503).json({ error: 'Database required for procure-to-pay receipt' });
-    return;
-  }
+  if (!requireDatabase(res)) return;
   const body = req.body as { receipts?: { lineId: string; quantity: number }[] };
   if (!Array.isArray(body.receipts) || body.receipts.length === 0) {
     res.status(400).json({ error: 'receipts: [{ lineId, quantity }, ...] required' });
