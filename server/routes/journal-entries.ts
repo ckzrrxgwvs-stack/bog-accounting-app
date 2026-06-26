@@ -3,6 +3,7 @@ import { EntryStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { useDatabase } from '../lib/dbMode';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
+import { resolveCompanyFromRequest } from '../lib/resolveCompany';
 import {
   getOrCreateInvestmentCompany,
   resolveInvestmentBookFromSourceType,
@@ -94,7 +95,11 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompanyFromRequest(req);
+    if (!company) {
+      res.status(503).json({ error: 'Company unavailable' });
+      return;
+    }
     const where: import('@prisma/client').Prisma.JournalEntryWhereInput = {
       companyId: company.id,
     };
@@ -220,9 +225,8 @@ router.post('/:id/submit', async (req, res) => {
     return;
   }
   try {
-    const company = await getOrCreateDefaultCompany();
     const row = await prisma.journalEntry.findFirst({
-      where: { id: req.params.id, companyId: company.id },
+      where: { id: req.params.id },
     });
     if (!row) {
       res.status(404).json({ error: 'Journal entry not found' });
@@ -251,9 +255,8 @@ router.post('/:id/approve', async (req, res) => {
     return;
   }
   try {
-    const company = await getOrCreateDefaultCompany();
     const row = await prisma.journalEntry.findFirst({
-      where: { id: req.params.id, companyId: company.id },
+      where: { id: req.params.id },
     });
     if (!row) {
       res.status(404).json({ error: 'Journal entry not found' });
@@ -294,12 +297,11 @@ router.post('/:id/post', async (req, res) => {
   }
 
   try {
-    const company = await getOrCreateDefaultCompany();
     const require = requireJournalApproval();
 
     const result = await prisma.$transaction(async (tx) => {
       const row = await tx.journalEntry.findFirst({
-        where: { id: req.params.id, companyId: company.id },
+        where: { id: req.params.id },
         include: { lines: { include: { account: true } } },
       });
       if (!row) {
@@ -318,7 +320,7 @@ router.post('/:id/post', async (req, res) => {
         }
       }
 
-      await assertPeriodOpen(company.id, row.date);
+      await assertPeriodOpen(row.companyId, row.date);
 
       const updated = await tx.journalEntry.update({
         where: { id: row.id },
@@ -327,7 +329,7 @@ router.post('/:id/post', async (req, res) => {
       });
 
       await createLedgerEntriesForJournal(tx, {
-        companyId: company.id,
+        companyId: row.companyId,
         journalEntryId: updated.id,
         journalDate: updated.date,
         description: updated.description,

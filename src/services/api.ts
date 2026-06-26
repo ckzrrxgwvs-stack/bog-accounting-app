@@ -128,10 +128,11 @@ class ApiClient {
   }
 
   /** Trial balance CSV — triggers browser download when given blob handling on caller */
-  async fetchTrialBalanceCsv(params: { month?: number; year?: number }) {
+  async fetchTrialBalanceCsv(params: { month?: number; year?: number; book?: string }) {
     const q = new URLSearchParams();
     if (params.month != null) q.set('month', String(params.month));
     if (params.year != null) q.set('year', String(params.year));
+    if (params.book) q.set('book', params.book);
     q.set('format', 'csv');
     const token = getAuthBearerToken();
     const url = `${this.baseUrl}/reports/trial-balance?${q.toString()}`;
@@ -549,6 +550,20 @@ class ApiClient {
   async getCashFlowReport(params?: Record<string, string>) {
     const q = params ? `?${new URLSearchParams(params).toString()}` : '';
     return this.request(`/reports/cash-flow${q}`, { method: 'GET' });
+  }
+
+  async getArAgingReport(params?: Record<string, string>) {
+    const q = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return this.request<{ buckets: { bucket: string; amount: number }[] }>(`/reports/ar-aging${q}`, {
+      method: 'GET',
+    });
+  }
+
+  async getApAgingReport(params?: Record<string, string>) {
+    const q = params ? `?${new URLSearchParams(params).toString()}` : '';
+    return this.request<{ buckets: { bucket: string; amount: number }[] }>(`/reports/ap-aging${q}`, {
+      method: 'GET',
+    });
   }
 
   // AI CPA

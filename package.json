@@ -12,6 +12,7 @@
     "db:push": "prisma db push",
     "db:bootstrap": "tsx server/scripts/bootstrapBogProgram.ts",
     "go-live:local": "bash scripts/bog-go-live.sh",
+    "post:draft-journals": "tsx server/scripts/postAllDraftJournals.ts",
     "dev:program": "bash scripts/dev-program.sh",
     "seed:investment-sma": "tsx server/scripts/seedInvestmentSmaCompany.ts",
     "build": "pnpm install --prefer-offline && rm -rf node_modules/.vite-temp && tsc -b && vite build",

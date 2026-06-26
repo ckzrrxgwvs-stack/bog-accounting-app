@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { AccountType, InvoiceStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { useDatabase } from '../lib/dbMode';
-import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
+import { resolveCompanyFromRequest } from '../lib/resolveCompany';
 import { dec } from '../lib/serialize';
 import { aggregatePostedJournal, aggregatePostedJournalThrough } from '../services/journalAggregates';
 
@@ -56,7 +56,11 @@ router.get('/income-statement', async (req, res) => {
   }
 
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompanyFromRequest(req);
+    if (!company) {
+      res.status(503).json({ error: 'Company unavailable' });
+      return;
+    }
     const agg = await aggregatePostedJournal(company.id, start, end);
     const accounts = await prisma.account.findMany({
       where: { companyId: company.id },
@@ -75,7 +79,23 @@ router.get('/income-statement', async (req, res) => {
     }
 
     if (agg.size === 0) {
-      res.json({ ...MOCK_INCOME, period: `${month}/${year}` });
+      const periodLabel = new Date(year, month - 1, 1).toLocaleString('en-US', {
+        month: 'long',
+        year: 'numeric',
+      });
+      res.json({
+        title: 'Income Statement',
+        period: periodLabel,
+        lines: [
+          { label: 'Revenue', level: 0, amount: 0, isBold: false, isTotal: false },
+          { label: 'Cost of Goods Sold', level: 0, amount: 0, isBold: false, isTotal: false },
+          { label: 'GROSS PROFIT', level: 0, amount: 0, isBold: true, isTotal: true },
+          { label: 'Operating Expenses', level: 0, amount: 0, isBold: false, isTotal: false },
+          { label: 'NET INCOME', level: 0, amount: 0, isBold: true, isTotal: true },
+        ],
+        totals: { revenue: 0, cogs: 0, grossProfit: 0, expenses: 0, netIncome: 0 },
+        empty: true,
+      });
       return;
     }
 
@@ -147,7 +167,11 @@ router.get('/balance-sheet', async (req, res) => {
   }
 
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompanyFromRequest(req);
+    if (!company) {
+      res.status(503).json({ error: 'Company unavailable' });
+      return;
+    }
     const agg = await aggregatePostedJournalThrough(company.id, end);
     const accounts = await prisma.account.findMany({
       where: { companyId: company.id },
@@ -184,18 +208,16 @@ router.get('/balance-sheet', async (req, res) => {
     }
 
     if (assetLines.length === 0 && liabLines.length === 0 && eqLines.length === 0) {
-      const fallback = {
+      res.json({
         title: 'Balance Sheet',
         date: end.toLocaleDateString('en-US', { dateStyle: 'long' }),
-        assets: [
-          { label: 'Current Assets', amount: 121500 },
-          { label: 'TOTAL ASSETS', amount: 121500 },
-        ],
-        liabilities: [{ label: 'Accounts Payable', amount: 29500 }],
-        equity: [{ label: 'Retained Earnings', amount: 92000 }],
-        totals: { assets: 121500, liabilities: 29500, equity: 92000 },
-      };
-      res.json(fallback);
+        assets: [],
+        liabilities: [],
+        equity: [],
+        totals: { assets: 0, liabilities: 0, equity: 0 },
+        period: `${month}/${year}`,
+        empty: true,
+      });
       return;
     }
 
@@ -291,7 +313,11 @@ router.get('/trial-balance', async (req, res) => {
   }
 
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompanyFromRequest(req);
+    if (!company) {
+      res.status(503).json({ error: 'Company unavailable' });
+      return;
+    }
     const agg = await aggregatePostedJournalThrough(company.id, end);
     const accounts = await prisma.account.findMany({
       where: { companyId: company.id },
@@ -316,7 +342,15 @@ router.get('/trial-balance', async (req, res) => {
     }
 
     if (rows.length === 0) {
-      res.json({ ...mockTb, date: end.toLocaleDateString('en-US', { dateStyle: 'long' }), period: `${month}/${year}` });
+      res.json({
+        title: 'Trial Balance',
+        date: end.toLocaleDateString('en-US', { dateStyle: 'long' }),
+        accounts: [],
+        totals: { debit: 0, credit: 0 },
+        isBalanced: true,
+        period: `${month}/${year}`,
+        empty: true,
+      });
       return;
     }
 
@@ -390,7 +424,11 @@ router.get('/ar-aging', async (_req, res) => {
     return;
   }
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompanyFromRequest(req);
+    if (!company) {
+      res.status(503).json({ error: 'Company unavailable' });
+      return;
+    }
     const rows = await prisma.invoice.findMany({
       where: {
         companyId: company.id,
@@ -419,7 +457,11 @@ router.get('/ap-aging', async (_req, res) => {
     return;
   }
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompanyFromRequest(req);
+    if (!company) {
+      res.status(503).json({ error: 'Company unavailable' });
+      return;
+    }
     const rows = await prisma.invoice.findMany({
       where: {
         companyId: company.id,
