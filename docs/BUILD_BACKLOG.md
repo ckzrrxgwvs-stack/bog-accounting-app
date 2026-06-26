@@ -25,8 +25,9 @@ View queue: `GET /api/agent-org/work` (President/CFO JWT) or Prisma `AgentWorkIt
 | 50 | Microsoft Office hub (.xlsx / .docx) | ✅ DONE |
 | 55 | Visual ergonomics & comfort mode | ✅ DONE |
 | 60 | Owner setup wizard + live Users page | ✅ DONE |
+| 65 | Portfolio books, first-run setup, delegated access | ✅ DONE |
 
-## Implemented (2026-06-25)
+## Implemented (2026-06-25 — 2026-06-26)
 
 - **P20** — Dashboard aging summary shows Current / 1–30 / 31–60 / 60+ buckets via `/api/reports/ar-aging` and `ap-aging`.
 - **P25** — `PeriodClose.tsx` four-step wizard; `GET /api/periods/preview` validates TB balance and open journals before close.
@@ -36,8 +37,9 @@ View queue: `GET /api/agent-org/work` (President/CFO JWT) or Prisma `AgentWorkIt
 - **P50** — `/office` hub; Excel export/import; Word legal templates via `/api/office`.
 - **P55** — Comfort mode, ⌘K command palette, Settings → Display & comfort.
 - **P60** — `/setup-owner` wizard; `GET/POST /api/setup/owner*`; Users page wired to Postgres; `BOG_BOOTSTRAP_USERS` gated dev accounts.
+- **P65** — One portfolio company, multiple project books (`PortfolioBook`), top-menu switcher, inline first sign-in with generate-password; `UserBookAccess` + `UserModuleGrant`; President/CFO/Controller assign books; Controller → department managers → AP/AR/Collections cascade.
 
-**After pull:** run `pnpm exec prisma db push` for `ownerSetupCompletedAt` on Company.
+**After pull (P65):** run `pnpm exec prisma db push` on the API host (Render build runs this automatically). Tables: `PortfolioBook`, `UserBookAccess`, `UserModuleGrant`, `User.canViewPortfolio`.
 
 ## Next backlog (deferred)
 
@@ -46,3 +48,6 @@ View queue: `GET /api/agent-org/work` (President/CFO JWT) or Prisma `AgentWorkIt
 - Period close audit log UI surfacing
 - Journal Excel import → commit DRAFT entries
 - Full in-browser spreadsheet (out of scope — use Data Studio + Excel export)
+- Portfolio rollup dashboard (full KPIs across authorized books)
+- Settings → Portfolio & access tab (optional; today: Users + top menu)
+- Email invitations and self-service password reset

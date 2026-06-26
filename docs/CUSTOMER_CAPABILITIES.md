@@ -1,7 +1,7 @@
 # BOG customer capabilities — integrations, Office, ergonomics
 
 **Owner:** `@bog-pm-orchestrator` · **Implementer:** `@bog-systems-engineer`  
-**Updated:** 2026-06-25 (P45–P55)
+**Updated:** 2026-06-26 (P45–P65)
 
 ## What customers asked for vs what BOG delivers
 
@@ -11,6 +11,15 @@
 | Excel import/export | ✅ Native `.xlsx` trial balance, COA, journals, import template + journal upload preview | BOG is not Excel — use **Data Studio** for in-app analysis; open exports in Microsoft 365 for pivot/macros |
 | Word legal documents | ✅ `.docx` templates (engagement letter, FS cover, management rep, invoice transmittal) | BOG is not Word — generate draft, finalize in Microsoft Word (letterhead, track changes, e-sign) |
 | Visually ergonomic UI | ✅ Comfort mode, large text, soft grid toggle, ⌘K navigation, module spacing | Ongoing design iteration via `@bog-systems-engineer` |
+| Portfolio & multi-book access | ✅ One company, project books, top-menu switcher, delegated AP/AR/Collections | Portfolio rollup KPIs — partial (ingest summary); full rollup backlog |
+
+## Portfolio & access (P65)
+
+- **First sign-in:** business name + President account on login (generate-password option).
+- **Top menu:** switch authorized project books; Portfolio overview when granted.
+- **Users:** President / CFO / Controller assign books; department cascade via `UserModuleGrant`.
+- **API:** `/api/portfolio/*`, `/api/company/workspaces`
+- **Schema:** `PortfolioBook`, `UserBookAccess`, `UserModuleGrant`, `User.canViewPortfolio`
 
 ## Financial institutions (P45)
 
@@ -35,5 +44,19 @@
 ## After deploy
 
 ```bash
-pnpm exec prisma db push   # FinancialInstitutionConnection + BankFeedAccount.connectionId
+# P65 — portfolio + access tables (Render build runs this automatically)
+pnpm exec prisma db push
+
+# P45 — if upgrading from older DB without financial connections
+# FinancialInstitutionConnection + BankFeedAccount.connectionId
 ```
+
+### P65 go-live checklist
+
+1. **Render** — push to `main` triggers build (`prisma db push` in `render.yaml`).
+2. **Verify API:** `curl -s https://bog-accounting-api.onrender.com/api/health` → `schemaReady: true`.
+3. **Vercel** — redeploy so frontend includes P65 (`VITE_API_URL` → Render `/api`).
+4. **First login** — `/login` or `/setup-owner` if `needsOwnerSetup`.
+5. **Users** — invite team; assign books and departments.
+
+See `docs/OWNER_SETUP.md` for access delegation rules.

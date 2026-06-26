@@ -1,48 +1,65 @@
-# BOG owner login — available now vs later
+# BOG owner login & portfolio access — available now vs later
 
-**P60** · `@bog-systems-engineer` · 2026-06-25
+**P60 + P65** · `@bog-systems-engineer` · updated 2026-06-26
+
+## Model (P65)
+
+- **One portfolio company** — name set at first sign-in (you = President).
+- **Many project books** — Commerce, Agentic, Personal, plus custom projects; each has its own GL.
+- **Top menu** — switch active book; optional **Portfolio** rollup when authorized.
+- **Members** — own email/password under your company (not separate companies).
+- **Access chain** — President / CFO / Controller assign books; Controller assigns department managers; managers delegate AP, AR, Collections, etc.
 
 ## Available **now**
 
 | Option | When to use | How |
 |--------|-------------|-----|
-| **First-run owner wizard** (recommended) | Fresh production or you want *your* email as President | Open `/setup-owner` or follow the link on the login page. Choose email + password, or **Generate secure password**. |
-| **Bootstrap dev users** | Local development only | `pnpm run go-live:local` sets `BOG_BOOTSTRAP_USERS=1` → `admin@company.com` / `demo123` (or `BOG_BOOTSTRAP_PASSWORD`). |
-| **Users page** | Add CFO, accountants, clerks after you are President | **Users** → Add User — email, role, password (8+) or generate. Wired to live Postgres. |
-| **API** | Scripts / automation | `POST /api/setup/owner` (once) or `POST /api/users` (JWT as President/CFO/Controller). |
+| **First-run setup** (recommended) | Fresh production | Login page shows setup form when `needsOwnerSetup`, or `/setup-owner`. Business name + email + password or **generate password**. |
+| **Bootstrap dev users** | Local only | `pnpm run go-live:local` → `admin@company.com` / `demo123` |
+| **Users page** | Add staff, assign access | **Users** → Add User; book icon for portfolio + department grants |
+| **Add project book** | New ledger under portfolio | Top menu → **Add project book** (President / CFO) |
+| **API** | Automation | See API reference below |
 
 ### Production first-time flow
 
-1. Deploy API with `DATABASE_URL` + `JWT_SECRET`.
-2. Run `pnpm exec prisma db push` on the API host.
-3. Open `https://<your-vercel-app>/setup-owner`.
-4. Create your President account (your real email).
-5. Bootstrap demo users are **deactivated** automatically.
+1. Deploy API with `DATABASE_URL` + `JWT_SECRET` (Render runs `prisma db push` on build).
+2. Open `https://bog-accounting-v5.vercel.app/login` (or `/setup-owner`).
+3. Complete setup with your business name and President credentials.
+4. Bootstrap demo users are deactivated automatically.
 
-Do **not** set `BOG_BOOTSTRAP_USERS=1` on production Render unless you explicitly want dev accounts.
+Do **not** set `BOG_BOOTSTRAP_USERS=1` on production Render.
 
 ### Local dev flow
 
 ```bash
-pnpm run go-live:local    # BOG_BOOTSTRAP_USERS=1 → demo users
+pnpm run go-live:local
 pnpm run dev:program
 ```
 
-Either sign in with `admin@company.com` / `demo123` **or** visit http://localhost:5173/setup-owner for your own login.
+Visit http://localhost:5173/login for inline setup or `/setup-owner`.
+
+## Access delegation
+
+| Role | Books & portfolio | Departments (AP, AR, Collections, …) |
+|------|-------------------|--------------------------------------|
+| President | Assign all | Assign all + re-delegation |
+| CFO | Assign all | Assign all + re-delegation; create project books |
+| Controller | Assign below Controller | Assign to accountants / clerks |
+| Dept manager | — | Only modules granted with **May delegate downstream** |
 
 ## Available **later** (backlog)
 
 | Option | Notes |
 |--------|--------|
-| Email invitations | Send invite link + MFA enrollment |
+| Email invitations | Invite link + MFA enrollment |
 | SSO / Google Workspace | Enterprise tenants |
 | Self-service password reset | Forgot-password email flow |
-| Username (non-email) login | Email remains primary identifier today |
+| Settings → Portfolio tab | Optional; today: Users + top menu |
 
 ## API reference
 
 ```bash
-# Status + option list
+# Status
 GET /api/setup/owner-status
 
 # One-time President setup (public, rate-limited)
@@ -51,28 +68,42 @@ POST /api/setup/owner
   "email": "you@company.com",
   "firstName": "Manuel",
   "lastName": "Mejia",
-  "companyName": "My Company LLC",
-  "password": "your-secure-password",
-  "generatePassword": false
+  "companyName": "My Portfolio LLC",
+  "generatePassword": true
 }
 
-# Staff user (requires Bearer JWT — President/CFO/Controller)
+# Staff + access (JWT required)
 POST /api/users
-Authorization: Bearer <token>
+PUT /api/portfolio/users/:userId/access
 {
-  "email": "staff@company.com",
-  "firstName": "Jane",
-  "lastName": "Doe",
-  "role": "ACCOUNTANT",
-  "password": "min-8-chars"
+  "canViewPortfolio": true,
+  "bookIds": ["..."],
+  "modules": [
+    { "module": "accounts_receivable", "canDelegate": true },
+    { "module": "collections", "canDelegate": false }
+  ]
 }
+
+GET /api/portfolio/delegation-options
+GET /api/company/workspaces
 ```
 
 ## Environment
 
 | Variable | Purpose |
 |----------|---------|
-| `BOG_BOOTSTRAP_USERS=1` | Create `admin@company.com` etc. (local go-live only) |
-| `BOG_BOOTSTRAP_PASSWORD` | Override default `demo123` |
-| `BOG_BOOTSTRAP_RESET=1` | Reset bootstrap passwords on `db:bootstrap` |
-| `JWT_SECRET` | Required in production for login tokens |
+| `BOG_BOOTSTRAP_USERS=1` | Demo users (local only) |
+| `BOG_BOOTSTRAP_PASSWORD` | Override `demo123` |
+| `JWT_SECRET` | Required in production |
+| `DATABASE_URL` | Supabase URI on Render |
+
+## After deploy
+
+Render `buildCommand` includes `pnpm exec prisma db push`. Verify:
+
+```bash
+curl -s https://bog-accounting-api.onrender.com/api/health
+# expect database: true, schemaReady: true
+```
+
+Redeploy Vercel after API is live so `VITE_API_URL` points at Render `/api`.

@@ -42,6 +42,8 @@ curl -s https://bog-accounting-api.onrender.com/api/health
 
 Expect: `"database": true`, `"schemaReady": true`
 
+**P65 schema** — `render.yaml` `buildCommand` runs `pnpm exec prisma db push` (adds `PortfolioBook`, `UserBookAccess`, `UserModuleGrant`). No manual migration needed if deploy succeeded.
+
 **If accounts still empty after deploy** — one-time init (Render → Environment → copy `AGENT_ORG_CRON_SECRET`):
 
 ```bash
@@ -51,10 +53,11 @@ curl -X POST https://bog-accounting-api.onrender.com/api/setup/init \
 
 Expect: `"accountCount": 16` (or similar), `"userCount": 4`
 
-**First login** (auto-seeded on empty DB):
+**First login** after P65:
 
-- `admin@company.com` / `demo123`  
-- Change password later via Users module or Supabase  
+- Fresh DB: open `/login` — inline portfolio setup (business name + President account).
+- Or `/setup-owner` directly.
+- Local dev only: `admin@company.com` / `demo123` when `BOG_BOOTSTRAP_USERS=1`.
 
 ---
 

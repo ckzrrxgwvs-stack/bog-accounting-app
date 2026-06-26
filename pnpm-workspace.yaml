@@ -3,3 +3,6 @@ allowBuilds:
   esbuild: false
   prisma: false
   sharp: false
+
+packages:
+  - '.'
