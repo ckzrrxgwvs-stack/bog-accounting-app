@@ -2,7 +2,7 @@
 # Creates "BOG Accounting.app" on the user's Desktop — opens the live web app in the default browser.
 set -euo pipefail
 
-APP_NAME="BOG Accounting"
+APP_NAME="${BOG_APP_NAME:-BOG-Pi · Books On The Go}"
 APP_URL="${BOG_APP_URL:-https://bog-accounting-v5.vercel.app/login}"
 DESKTOP="${HOME}/Desktop"
 APP_PATH="${DESKTOP}/${APP_NAME}.app"
@@ -13,6 +13,11 @@ trap 'rm -rf "${BUILD_DIR}"' EXIT
 
 echo "→ Building ${APP_NAME}.app on Desktop"
 echo "  URL: ${APP_URL}"
+
+# Remove legacy launcher names so one canonical program icon remains.
+rm -rf "${DESKTOP}/BOG Accounting.app" 2>/dev/null || true
+rm -rf "${DESKTOP}/BOG Beta Test.app" 2>/dev/null || true
+rm -rf "${DESKTOP}/BOG Beta Test — SHARE.app" 2>/dev/null || true
 
 # PNG from SVG (Quick Look on macOS)
 qlmanage -t -s 1024 -o "${BUILD_DIR}" "${SVG}" >/dev/null 2>&1
@@ -47,7 +52,7 @@ chmod +x "${APP_PATH}/Contents/MacOS/launcher"
 
 cp "${BUILD_DIR}/AppIcon.icns" "${APP_PATH}/Contents/Resources/AppIcon.icns"
 
-cat > "${APP_PATH}/Contents/Info.plist" <<'PLIST'
+cat > "${APP_PATH}/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -59,9 +64,9 @@ cat > "${APP_PATH}/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key>
   <string>com.bog.accounting.launcher</string>
   <key>CFBundleName</key>
-  <string>BOG Accounting</string>
+  <string>${APP_NAME}</string>
   <key>CFBundleDisplayName</key>
-  <string>BOG Accounting</string>
+  <string>${APP_NAME}</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

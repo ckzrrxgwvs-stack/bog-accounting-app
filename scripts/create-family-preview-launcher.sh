@@ -3,7 +3,7 @@
 set -euo pipefail
 
 APP_NAME="${BOG_SHARE_APP_NAME:-BOG · Family Preview — SHARE}"
-APP_URL="${BOG_APP_URL:?Set BOG_APP_URL to your private preview link from Settings → Licensing (https://bog-accounting-v5.vercel.app/try/TOKEN)}"
+URL_FILE="${BOG_FAMILY_PREVIEW_URL_FILE:-${HOME}/.bog-family-preview.url}"
 DESKTOP="${HOME}/Desktop"
 APP_PATH="${DESKTOP}/${APP_NAME}.app"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -11,9 +11,16 @@ SVG="${ROOT}/public/favicon.svg"
 BUILD_DIR="$(mktemp -d)"
 trap 'rm -rf "${BUILD_DIR}"' EXIT
 
+# BOG_APP_URL overrides file; otherwise launcher reads URL_FILE at double-click time.
+if [[ -n "${BOG_APP_URL:-}" ]]; then
+  mkdir -p "$(dirname "${URL_FILE}")"
+  printf '%s\n' "${BOG_APP_URL}" > "${URL_FILE}"
+  chmod 600 "${URL_FILE}"
+fi
+
 echo "→ Building family & friends preview share icon on Desktop"
 echo "  Name: ${APP_NAME}"
-echo "  URL: ${APP_URL}"
+echo "  URL file: ${URL_FILE}"
 echo "  Note: BOG is still in development — for trusted feedback only, not public release."
 
 # Remove legacy / public-beta launcher names.
@@ -44,9 +51,27 @@ iconutil -c icns "${ICONSET}" -o "${BUILD_DIR}/AppIcon.icns"
 rm -rf "${APP_PATH}"
 mkdir -p "${APP_PATH}/Contents/MacOS" "${APP_PATH}/Contents/Resources"
 
-cat > "${APP_PATH}/Contents/MacOS/launcher" <<EOF
+cat > "${APP_PATH}/Contents/MacOS/launcher" <<'EOF'
 #!/bin/bash
-open "${APP_URL}"
+URL_FILE="${BOG_FAMILY_PREVIEW_URL_FILE:-$HOME/.bog-family-preview.url}"
+if [[ -f "${URL_FILE}" ]]; then
+  URL="$(head -1 "${URL_FILE}" | tr -d '[:space:]')"
+  if [[ -n "${URL}" ]]; then
+    open "${URL}"
+    exit 0
+  fi
+fi
+osascript <<'APPLESCRIPT' 2>/dev/null || true
+display dialog "Family preview link not set yet.
+
+1. Sign in to BOG → Settings → Licensing
+2. Create a family preview link
+3. In Terminal, run:
+   pnpm run configure:family-preview-url -- 'PASTE_URL_HERE'
+
+Opening Settings now." buttons {"OK"} default button 1 with title "BOG Family Preview"
+APPLESCRIPT
+open "https://bog-accounting-v5.vercel.app/settings"
 EOF
 chmod +x "${APP_PATH}/Contents/MacOS/launcher"
 
