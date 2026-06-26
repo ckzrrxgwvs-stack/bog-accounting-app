@@ -122,7 +122,7 @@ class ApiClient {
     lastName: string;
     password?: string;
     generatePassword?: boolean;
-    companyName?: string;
+    companyName: string;
     deactivateBootstrapUsers?: boolean;
   }) {
     return this.request<{
@@ -130,6 +130,64 @@ class ApiClient {
       generatedPassword?: string;
       user: Record<string, unknown>;
     }>('/setup/owner', { method: 'POST', body, skipAuth: true });
+  }
+
+  async getDelegationOptions() {
+    return this.request<{
+      canAssignBooks: boolean;
+      canCreateBooks: boolean;
+      assignableModules: Array<{ id: string; label: string }>;
+      allModules: Array<{ id: string; label: string }>;
+    }>('/portfolio/delegation-options');
+  }
+
+  async updateUserAccess(
+    userId: string,
+    body: {
+      canViewPortfolio?: boolean;
+      bookIds?: string[];
+      modules?: Array<{ module: string; canDelegate?: boolean }>;
+    }
+  ) {
+    return this.request(`/portfolio/users/${userId}/access`, { method: 'PUT', body });
+  }
+
+  async createPortfolioProjectBook(label: string) {
+    return this.request<{
+      book: {
+        id: string;
+        bookId: string;
+        slug: string;
+        label: string;
+        glCompanyId: string;
+        kind: string;
+      };
+    }>('/portfolio/books', { method: 'POST', body: { label } });
+  }
+
+  async getPortfolioBooks() {
+    return this.request<{
+      books: Array<{ id: string; slug: string; label: string; kind: string; glCompanyId: string }>;
+      canViewPortfolio: boolean;
+      portfolioCompanyName: string;
+    }>('/portfolio/books');
+  }
+
+  async getBusinessWorkspaces() {
+    return this.request<{
+      workspaces: Array<{
+        id: string;
+        bookId?: string;
+        label: string;
+        companyId: string;
+        kind: 'commerce' | 'investment' | 'project';
+        apiBook?: string;
+        ledgerKey?: 'commerce' | 'personal' | 'agentic';
+      }>;
+      canViewPortfolio: boolean;
+      activeWorkspaceId: string;
+      commerceCompanyName: string;
+    }>('/company/workspaces');
   }
 
   async getDashboardFinancials(params?: { month?: number; year?: number; book?: string }) {

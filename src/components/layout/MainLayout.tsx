@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { useCompanyPolicy } from '@/hooks/useCompanyPolicy';
 import { CommandPalette } from '@/components/CommandPalette';
+import { BusinessWorkspaceProvider, BusinessWorkspaceSwitcher } from '@/context/BusinessWorkspaceContext';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, module: 'dashboard' },
@@ -49,6 +50,7 @@ const navigation = [
   { name: 'Vendors', href: '/master/vendors', icon: Building2, module: 'accounts_payable' },
   { name: 'Accounts Payable', href: '/ap', icon: CreditCard, module: 'accounts_payable' },
   { name: 'Accounts Receivable', href: '/ar', icon: FileText, module: 'accounts_receivable' },
+  { name: 'Collections', href: '/ar', icon: Receipt, module: 'collections' },
   { name: 'Inventory', href: '/inventory', icon: Package, module: 'inventory' },
   { name: 'Payroll', href: '/payroll', icon: Receipt, module: 'payroll' },
   { name: 'CFDI (Mexico)', href: '/cfdi', icon: FileCheck, module: 'cfdi' },
@@ -128,6 +130,7 @@ export function MainLayout() {
   });
 
   return (
+    <BusinessWorkspaceProvider>
     <div className="min-h-screen bg-bog-paper text-bog-ink">
       <CommandPalette />
       {sidebarOpen && (
@@ -156,6 +159,8 @@ export function MainLayout() {
             <X size={20} />
           </button>
         </div>
+
+        <BusinessWorkspaceSwitcher />
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4 bog-sidebar-nav">
           <p className="bog-section-label px-3 pb-2 pt-1">Workspace</p>
@@ -278,5 +283,6 @@ export function MainLayout() {
         </footer>
       </div>
     </div>
+    </BusinessWorkspaceProvider>
   );
 }

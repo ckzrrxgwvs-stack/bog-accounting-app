@@ -42,6 +42,7 @@ export const ROLE_MODULE_ACTIONS: Record<UserRoleType, Record<string, string[]>>
     general_ledger: ['read', 'create', 'update', 'export'],
     accounts_payable: ['read', 'create', 'update', 'export'],
     accounts_receivable: ['read', 'create', 'update', 'export'],
+    collections: ['read', 'create', 'update', 'export'],
     inventory: ['read', 'create', 'update', 'export'],
     payroll: ['read', 'export'],
     cfdi: ['read', 'create', 'update', 'export'],
@@ -58,6 +59,7 @@ export const ROLE_MODULE_ACTIONS: Record<UserRoleType, Record<string, string[]>>
     general_ledger: ['read', 'create', 'update', 'export'],
     accounts_payable: ['read', 'create', 'update', 'export'],
     accounts_receivable: ['read', 'create', 'update', 'export'],
+    collections: ['read', 'create', 'update', 'export'],
     inventory: ['read', 'create', 'update', 'export'],
     payroll: [],
     reports: ['read', 'export'],
@@ -86,6 +88,7 @@ export const ROLE_MODULE_ACTIONS: Record<UserRoleType, Record<string, string[]>>
     general_ledger: [],
     accounts_payable: [],
     accounts_receivable: ['read', 'create', 'update', 'export'],
+    collections: ['read', 'create', 'update', 'export'],
     inventory: [],
     payroll: [],
     reports: ['read', 'export'],
@@ -123,4 +126,16 @@ export function checkPermissionForRole(
 export function hasModuleAccessForRole(role: UserRoleType, module: string): boolean {
   const actions = ROLE_MODULE_ACTIONS[role]?.[module];
   return Array.isArray(actions) && actions.length > 0;
+}
+
+/** When explicit grants exist, navigation is limited to granted modules (still capped by role ceiling). */
+export function hasModuleAccessForUser(
+  role: UserRoleType,
+  module: string,
+  moduleGrants?: Array<{ module: string }> | null
+): boolean {
+  if (moduleGrants && moduleGrants.length > 0) {
+    if (!moduleGrants.some((g) => g.module === module)) return false;
+  }
+  return hasModuleAccessForRole(role, module);
 }

@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { BOOTSTRAP_USER_EMAILS, isBootstrapUserEmail } from '../lib/bootstrapUsers';
 import { getOrCreateDefaultCompany } from './companyBootstrap';
 import { issueAuthToken } from '../lib/issueAuthToken';
+import { ensureDefaultPortfolioBooks } from './portfolioBooks';
 
 export function generateSecurePassword(length = 16): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
@@ -108,9 +109,13 @@ export async function completeOwnerSetup(input: {
   };
   generatedPassword?: string;
 }> {
+  if (!input.companyName?.trim()) {
+    throw new Error('Business name is required');
+  }
+
   const status = await getOwnerSetupStatus();
   if (!status.needsOwnerSetup) {
-    throw new Error('Owner setup is already complete');
+    throw new Error('Owner setup is already complete — sign in or add members under Users');
   }
 
   const email = input.email.trim().toLowerCase();
@@ -136,20 +141,21 @@ export async function completeOwnerSetup(input: {
     throw new Error('Password must be at least 8 characters (or choose generate password)');
   }
 
-  const company = await getOrCreateDefaultCompany();
-  const companyName = input.companyName?.trim() || company.name;
+  const companyName = input.companyName!.trim();
   const passwordHash = await bcrypt.hash(plainPassword, 12);
 
   const user = await prisma.$transaction(async (tx) => {
+    const company = await getOrCreateDefaultCompany();
     await tx.company.update({
       where: { id: company.id },
       data: {
         name: companyName,
         legalName: company.legalName || companyName,
-        email: email,
+        email,
         ownerSetupCompletedAt: new Date(),
       },
     });
+    const companyId = company.id;
 
     const created = await tx.user.create({
       data: {
@@ -158,9 +164,10 @@ export async function completeOwnerSetup(input: {
         firstName: input.firstName.trim(),
         lastName: input.lastName.trim(),
         role: UserRoleType.PRESIDENT,
-        companyId: company.id,
+        companyId,
         isActive: true,
         mfaEnabled: false,
+        canViewPortfolio: true,
       },
       include: { company: { select: { name: true } } },
     });
@@ -168,7 +175,7 @@ export async function completeOwnerSetup(input: {
     if (input.deactivateBootstrapUsers !== false) {
       await tx.user.updateMany({
         where: {
-          companyId: company.id,
+          companyId,
           email: { in: [...BOOTSTRAP_USER_EMAILS] },
         },
         data: { isActive: false },
@@ -177,6 +184,8 @@ export async function completeOwnerSetup(input: {
 
     return created;
   });
+
+  await ensureDefaultPortfolioBooks(user.companyId);
 
   const token = issueAuthToken({
     id: user.id,

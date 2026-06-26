@@ -33,6 +33,9 @@ export interface User {
   isActive: boolean;
   lastLoginAt?: Date;
   companyId: string;
+  companyName?: string;
+  canViewPortfolio?: boolean;
+  moduleGrants?: Array<{ module: string; canDelegate: boolean }>;
   company?: Company;
   createdAt: Date;
   updatedAt: Date;

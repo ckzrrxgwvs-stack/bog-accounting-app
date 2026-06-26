@@ -4,6 +4,8 @@ import { UserRoleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { requireAuthRoles, type JwtPayload } from '../middleware/requireAuthRoles';
+import { requireDatabase } from '../lib/requireDatabase';
+import { listBusinessWorkspaces } from '../services/businessWorkspaces';
 
 const router = Router();
 
@@ -125,5 +127,27 @@ router.patch(
     }
   }
 );
+
+router.get('/workspaces', requireAuthRoles(UserRoleType.PRESIDENT, UserRoleType.CFO, UserRoleType.CONTROLLER, UserRoleType.ACCOUNTANT), async (req, res) => {
+  if (!requireDatabase(res)) return;
+  try {
+    const jwt = (req as Request & { authJwt?: JwtPayload }).authJwt;
+    if (!jwt?.sub || !jwt?.companyId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const result = await listBusinessWorkspaces(jwt.sub, jwt.companyId);
+    const commerce = result.workspaces.find((w) => w.kind === 'commerce');
+    res.json({
+      workspaces: result.workspaces,
+      canViewPortfolio: result.canViewPortfolio,
+      activeWorkspaceId: commerce?.id ?? result.workspaces[0]?.id ?? 'commerce',
+      commerceCompanyName: result.portfolioCompanyName,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(503).json({ error: 'Could not load workspaces' });
+  }
+});
 
 export { router as companyRouter };

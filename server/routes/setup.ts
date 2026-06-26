@@ -9,6 +9,8 @@ import { requireDatabase } from '../lib/requireDatabase';
 import { ensureDatabaseSchema } from '../services/ensureDatabaseSchema';
 import { ensureProgramBootstrap } from '../services/ensureProgramBootstrap';
 import { completeOwnerSetup, getOwnerSetupStatus } from '../services/ownerSetup';
+import { requireAuthRoles } from '../middleware/requireAuthRoles';
+import { UserRoleType } from '@prisma/client';
 
 const router = Router();
 
@@ -55,6 +57,10 @@ router.post('/owner', ownerSetupLimiter, async (req, res) => {
 
   if (!body.email?.trim() || !body.firstName?.trim() || !body.lastName?.trim()) {
     res.status(400).json({ error: 'email, firstName, and lastName are required' });
+    return;
+  }
+  if (!body.companyName?.trim()) {
+    res.status(400).json({ error: 'Business name is required' });
     return;
   }
 

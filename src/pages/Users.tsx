@@ -1,9 +1,14 @@
 // User Management Page — live PostgreSQL via /api/users
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, Edit, Trash2, Shield, Mail, User, Check, X, Key, Eye, EyeOff } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Shield, Mail, User, Check, X, Key, Eye, EyeOff, BookOpen } from 'lucide-react';
 import { UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/types/permissions';
 import { api } from '@/services/api';
+import { useAuthStore } from '@/stores/authStore';
+
+import { isExecutiveRole } from '@/lib/delegatableModules';
+
+type ModuleGrantForm = { module: string; canDelegate: boolean };
 
 interface UserData {
   id: string;
@@ -13,8 +18,18 @@ interface UserData {
   role: UserRole;
   mfaEnabled: boolean;
   isActive: boolean;
+  canViewPortfolio: boolean;
+  bookIds: string[];
+  books: Array<{ id: string; label: string; slug: string }>;
+  moduleGrants: ModuleGrantForm[];
   lastLoginAt: string | null;
   createdAt: string;
+}
+
+interface PortfolioBookOption {
+  id: string;
+  label: string;
+  slug: string;
 }
 
 interface NewUserForm {
@@ -24,11 +39,23 @@ interface NewUserForm {
   role: UserRole;
   password: string;
   generatePassword: boolean;
-  sendInvite: boolean;
+  canViewPortfolio: boolean;
+  bookIds: string[];
+  modules: ModuleGrantForm[];
 }
 
 export function Users() {
+  const currentUser = useAuthStore((s) => s.user);
+  const isExecutive = isExecutiveRole(currentUser?.role ?? '');
+  const canDelegateDownline = Boolean(
+    isExecutive || currentUser?.moduleGrants?.some((g) => g.canDelegate)
+  );
   const [users, setUsers] = useState<UserData[]>([]);
+  const [portfolioBooks, setPortfolioBooks] = useState<PortfolioBookOption[]>([]);
+  const [delegation, setDelegation] = useState({
+    canAssignBooks: false,
+    assignableModules: [] as Array<{ id: string; label: string }>,
+  });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -36,6 +63,12 @@ export function Users() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
+  const [showAccessModal, setShowAccessModal] = useState(false);
+  const [accessForm, setAccessForm] = useState({
+    canViewPortfolio: false,
+    bookIds: [] as string[],
+    modules: [] as ModuleGrantForm[],
+  });
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
@@ -48,8 +81,27 @@ export function Users() {
     role: 'ACCOUNTANT',
     password: '',
     generatePassword: false,
-    sendInvite: false,
+    canViewPortfolio: false,
+    bookIds: [],
+    modules: [],
   });
+
+  const loadDelegationOptions = useCallback(async () => {
+    const res = await api.getDelegationOptions();
+    if (res.success && res.data) {
+      setDelegation({
+        canAssignBooks: res.data.canAssignBooks,
+        assignableModules: res.data.assignableModules,
+      });
+    }
+  }, []);
+
+  const loadPortfolioBooks = useCallback(async () => {
+    const res = await api.getPortfolioBooks();
+    if (res.success && res.data?.books) {
+      setPortfolioBooks(res.data.books.map((b) => ({ id: b.id, label: b.label, slug: b.slug })));
+    }
+  }, []);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -66,7 +118,9 @@ export function Users() {
 
   useEffect(() => {
     void loadUsers();
-  }, [loadUsers]);
+    void loadPortfolioBooks();
+    void loadDelegationOptions();
+  }, [loadUsers, loadPortfolioBooks, loadDelegationOptions]);
 
   const [editForm, setEditForm] = useState({
     firstName: '',
@@ -101,11 +155,7 @@ export function Users() {
 
   const handleAddUser = async () => {
     setActionError(null);
-    const password =
-      newUserForm.generatePassword
-        ? Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'[b % 58]).join('')
-        : newUserForm.password;
-    if (password.length < 8) {
+    if (!newUserForm.generatePassword && newUserForm.password.length < 8) {
       setActionError('Password must be at least 8 characters');
       return;
     }
@@ -114,14 +164,19 @@ export function Users() {
       firstName: newUserForm.firstName,
       lastName: newUserForm.lastName,
       role: newUserForm.role,
-      password,
+      password: newUserForm.generatePassword ? undefined : newUserForm.password,
+      generatePassword: newUserForm.generatePassword,
+      canViewPortfolio: newUserForm.canViewPortfolio,
+      bookIds: newUserForm.role === 'PRESIDENT' ? [] : newUserForm.bookIds,
+      modules: newUserForm.role === 'PRESIDENT' ? [] : newUserForm.modules,
     });
     if (!res.success) {
       setActionError(res.error ?? 'Could not create user');
       return;
     }
-    if (newUserForm.generatePassword) {
-      alert(`User created. Generated password (save now):\n${password}`);
+    const payload = res.data as { generatedPassword?: string };
+    if (payload.generatedPassword) {
+      alert(`User created. Generated password (save now):\n${payload.generatedPassword}`);
     }
     setShowAddModal(false);
     setNewUserForm({
@@ -131,7 +186,9 @@ export function Users() {
       role: 'ACCOUNTANT',
       password: '',
       generatePassword: false,
-      sendInvite: false,
+      canViewPortfolio: false,
+      bookIds: [],
+      modules: [],
     });
     await loadUsers();
   };
@@ -197,6 +254,52 @@ export function Users() {
     setShowEditModal(true);
   };
 
+  const openAccessModal = (user: UserData) => {
+    setSelectedUser(user);
+    setAccessForm({
+      canViewPortfolio: user.canViewPortfolio,
+      bookIds: [...user.bookIds],
+      modules: user.moduleGrants?.map((g) => ({ ...g })) ?? [],
+    });
+    setShowAccessModal(true);
+  };
+
+  const toggleModuleGrant = (
+    modules: ModuleGrantForm[],
+    moduleId: string,
+    checked: boolean,
+    canDelegate = false
+  ): ModuleGrantForm[] => {
+    if (!checked) return modules.filter((m) => m.module !== moduleId);
+    const rest = modules.filter((m) => m.module !== moduleId);
+    return [...rest, { module: moduleId, canDelegate }];
+  };
+
+  const handleSaveAccess = async () => {
+    if (!selectedUser) return;
+    setActionError(null);
+    const body: {
+      canViewPortfolio?: boolean;
+      bookIds?: string[];
+      modules?: ModuleGrantForm[];
+    } = {};
+    if (delegation.canAssignBooks) {
+      body.canViewPortfolio = accessForm.canViewPortfolio;
+      body.bookIds = accessForm.bookIds;
+    }
+    if (delegation.assignableModules.length > 0) {
+      body.modules = accessForm.modules;
+    }
+    const res = await api.updateUserAccess(selectedUser.id, body);
+    if (!res.success) {
+      setActionError(res.error ?? 'Could not update access');
+      return;
+    }
+    setShowAccessModal(false);
+    setSelectedUser(null);
+    await loadUsers();
+  };
+
   const openRoleModal = (user: UserData) => {
     setSelectedUser(user);
     setShowRoleModal(true);
@@ -230,6 +333,7 @@ export function Users() {
           <p className="text-gray-500 mt-1">Manage users, roles, and permissions</p>
         </div>
         <div className="mt-4 sm:mt-0">
+          {isExecutive && (
           <button
             onClick={() => setShowAddModal(true)}
             className="flex items-center px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
@@ -237,6 +341,7 @@ export function Users() {
             <Plus size={18} className="mr-2" />
             Add User
           </button>
+          )}
         </div>
       </div>
 
@@ -253,9 +358,10 @@ export function Users() {
         <div className="flex items-start">
           <Shield className="text-amber-600 mt-0.5 mr-3" size={20} />
           <div>
-            <h3 className="font-medium text-amber-800">Live PostgreSQL users</h3>
+            <h3 className="font-medium text-amber-800">Portfolio & delegated access</h3>
             <p className="text-sm text-amber-600 mt-1">
-              Users are stored in Postgres. President/CFO/Controller can add staff with a password or generate one.
+              President, CFO, and Controller assign portfolio books. Controller and department managers delegate
+              AP, AR, Collections, and other modules down the line.
             </p>
           </div>
         </div>
@@ -379,6 +485,14 @@ export function Users() {
                       <Edit size={16} />
                     </button>
                     <button
+                      onClick={() => openAccessModal(user)}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                      title="Book access"
+                      disabled={!canDelegateDownline || user.role === 'PRESIDENT'}
+                    >
+                      <BookOpen size={16} />
+                    </button>
+                    <button
                       onClick={() => openRoleModal(user)}
                       className="p-1.5 text-gray-400 hover:text-gray-600"
                       title="Change Role"
@@ -495,18 +609,80 @@ export function Users() {
                   />
                 </div>
               )}
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="sendInvite"
-                  checked={newUserForm.sendInvite}
-                  onChange={(e) => setNewUserForm({ ...newUserForm, sendInvite: e.target.checked })}
-                  className="mr-2"
-                />
-                <label htmlFor="sendInvite" className="text-sm text-gray-600">
-                  Send invitation email with MFA setup instructions
-                </label>
-              </div>
+              {newUserForm.role !== 'PRESIDENT' && delegation.canAssignBooks && (
+                <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={newUserForm.canViewPortfolio}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, canViewPortfolio: e.target.checked })}
+                    />
+                    Portfolio overview (rollup across authorized books)
+                  </label>
+                  <p className="text-xs text-gray-500">Project books this member can open in the top menu:</p>
+                  <div className="max-h-32 space-y-1 overflow-y-auto">
+                    {portfolioBooks.map((book) => (
+                      <label key={book.id} className="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={newUserForm.bookIds.includes(book.id)}
+                          onChange={(e) => {
+                            setNewUserForm((f) => ({
+                              ...f,
+                              bookIds: e.target.checked
+                                ? [...f.bookIds, book.id]
+                                : f.bookIds.filter((id) => id !== book.id),
+                            }));
+                          }}
+                        />
+                        {book.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {newUserForm.role !== 'PRESIDENT' && delegation.assignableModules.length > 0 && (
+                <div className="rounded-lg border border-sky-100 bg-sky-50 p-3 space-y-2">
+                  <p className="text-sm font-medium text-sky-900">Accounting departments</p>
+                  {delegation.assignableModules.map((mod) => {
+                    const grant = newUserForm.modules.find((m) => m.module === mod.id);
+                    return (
+                      <div key={mod.id} className="flex flex-col gap-1 border-b border-sky-100 pb-2 last:border-0">
+                        <label className="flex items-center gap-2 text-sm text-gray-800">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(grant)}
+                            onChange={(e) => {
+                              setNewUserForm((f) => ({
+                                ...f,
+                                modules: toggleModuleGrant(f.modules, mod.id, e.target.checked, false),
+                              }));
+                            }}
+                          />
+                          {mod.label}
+                        </label>
+                        {grant && isExecutive && (
+                          <label className="ml-6 flex items-center gap-2 text-xs text-gray-600">
+                            <input
+                              type="checkbox"
+                              checked={grant.canDelegate}
+                              onChange={(e) => {
+                                setNewUserForm((f) => ({
+                                  ...f,
+                                  modules: f.modules.map((m) =>
+                                    m.module === mod.id ? { ...m, canDelegate: e.target.checked } : m
+                                  ),
+                                }));
+                              }}
+                            />
+                            May delegate to their team
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div className="p-6 border-t border-gray-200 flex justify-end space-x-3">
               <button
@@ -590,6 +766,117 @@ export function Users() {
                 className="px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800"
               >
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Access modal — books (executives) + departments (cascade) */}
+      {showAccessModal && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-black">Access for {selectedUser.firstName}</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Portfolio books and accounting departments this member may use.
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              {delegation.canAssignBooks && (
+                <>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={accessForm.canViewPortfolio}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, canViewPortfolio: e.target.checked }))}
+                    />
+                    Portfolio overview
+                  </label>
+                  <div>
+                    <p className="mb-2 text-sm font-medium text-gray-700">Project books</p>
+                    <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-gray-100 p-3">
+                      {portfolioBooks.map((book) => (
+                        <label key={book.id} className="flex items-center gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={accessForm.bookIds.includes(book.id)}
+                            onChange={(e) => {
+                              setAccessForm((f) => ({
+                                ...f,
+                                bookIds: e.target.checked
+                                  ? [...f.bookIds, book.id]
+                                  : f.bookIds.filter((id) => id !== book.id),
+                              }));
+                            }}
+                          />
+                          {book.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+              {delegation.assignableModules.length > 0 && (
+                <div>
+                  <p className="mb-2 text-sm font-medium text-gray-700">Accounting departments</p>
+                  <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-gray-100 p-3">
+                    {delegation.assignableModules.map((mod) => {
+                      const grant = accessForm.modules.find((m) => m.module === mod.id);
+                      return (
+                        <div key={mod.id} className="border-b border-gray-50 pb-2 last:border-0">
+                          <label className="flex items-center gap-2 text-sm text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(grant)}
+                              onChange={(e) => {
+                                setAccessForm((f) => ({
+                                  ...f,
+                                  modules: toggleModuleGrant(f.modules, mod.id, e.target.checked),
+                                }));
+                              }}
+                            />
+                            {mod.label}
+                          </label>
+                          {grant && (isExecutive || mod.id === 'collections') && (
+                            <label className="ml-6 mt-1 flex items-center gap-2 text-xs text-gray-500">
+                              <input
+                                type="checkbox"
+                                checked={grant.canDelegate}
+                                onChange={(e) => {
+                                  setAccessForm((f) => ({
+                                    ...f,
+                                    modules: f.modules.map((m) =>
+                                      m.module === mod.id ? { ...m, canDelegate: e.target.checked } : m
+                                    ),
+                                  }));
+                                }}
+                              />
+                              May delegate downstream
+                            </label>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAccessModal(false);
+                  setSelectedUser(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleSaveAccess()}
+                className="px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800"
+              >
+                Save access
               </button>
             </div>
           </div>

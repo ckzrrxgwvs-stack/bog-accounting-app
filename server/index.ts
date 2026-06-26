@@ -40,6 +40,7 @@ import { bankFeedsRouter } from './routes/bankFeeds';
 import { financialConnectionsRouter } from './routes/financialConnections';
 import { officeRouter } from './routes/office';
 import { setupRouter } from './routes/setup';
+import { portfolioRouter } from './routes/portfolio';
 
 config({ override: true });
 
@@ -108,6 +109,7 @@ app.use('/api/bank-feeds', bankFeedsRouter);
 app.use('/api/financial-connections', financialConnectionsRouter);
 app.use('/api/office', officeRouter);
 app.use('/api/setup', setupRouter);
+app.use('/api/portfolio', portfolioRouter);
 
 // Health check
 app.get('/api/health', async (_req, res) => {

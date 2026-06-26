@@ -119,6 +119,11 @@ model Company {
   bankFeedAccounts    BankFeedAccount[]
   bankFeedTransactions BankFeedTransaction[]
   financialInstitutionConnections FinancialInstitutionConnection[]
+
+  /** Portfolio entity owns many ledger books (each book may use a separate GL company row). */
+  portfolioBooks PortfolioBook[] @relation("PortfolioOwner")
+  /** When this company row is the isolated GL for a portfolio book. */
+  portfolioGlBook  PortfolioBook?  @relation("PortfolioGlCompany")
 }
 
 enum AiMemoryChannel {
@@ -471,6 +476,9 @@ model User {
   isActive      Boolean  @default(true)
   lastLoginAt   DateTime?
 
+  /** President grants portfolio rollup dashboard across authorized books. */
+  canViewPortfolio Boolean @default(false)
+
   // Timestamps
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -483,6 +491,9 @@ model User {
   messages      ChatMessage[]
   auditLogs     AuditLog[]
   productFeedbacks ProductFeedback[]
+  bookAccess    UserBookAccess[]
+  moduleGrants  UserModuleGrant[] @relation("UserModuleGrants")
+  grantedModules UserModuleGrant[] @relation("GrantedByUser")
 }
 
 enum UserRoleType {
@@ -493,6 +504,62 @@ enum UserRoleType {
   AP_CLERK    // Accounts Payable only
   AR_CLERK    // Accounts Receivable only
   READONLY    // View only
+}
+
+enum PortfolioBookKind {
+  COMMERCE
+  INVESTMENT
+  PROJECT
+}
+
+/** Ledger book under one portfolio company — GL may live in a separate Company row. */
+model PortfolioBook {
+  id                 String            @id @default(cuid())
+  portfolioCompanyId String
+  glCompanyId        String            @unique
+  slug               String
+  label              String
+  kind               PortfolioBookKind @default(PROJECT)
+  sortOrder          Int               @default(0)
+  isActive           Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  portfolioCompany Company          @relation("PortfolioOwner", fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+  glCompany        Company          @relation("PortfolioGlCompany", fields: [glCompanyId], references: [id], onDelete: Restrict)
+  userAccess       UserBookAccess[]
+
+  @@unique([portfolioCompanyId, slug])
+  @@index([portfolioCompanyId, sortOrder])
+}
+
+/** President assigns which project books a member may open in the top menu. */
+model UserBookAccess {
+  id     String @id @default(cuid())
+  userId String
+  bookId String
+
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book PortfolioBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([bookId])
+}
+
+/** Department / module scope — Controller → dept managers → clerks (AR, AP, Collections, …). */
+model UserModuleGrant {
+  id          String   @id @default(cuid())
+  userId      String
+  module      String
+  canDelegate Boolean  @default(false)
+  grantedById String?
+  grantedAt   DateTime @default(now())
+
+  user      User  @relation("UserModuleGrants", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("GrantedByUser", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, module])
+  @@index([userId])
 }
 
 model Session {

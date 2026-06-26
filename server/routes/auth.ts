@@ -23,7 +23,11 @@ router.post('/login', async (req, res) => {
   try {
     const user = await prisma.user.findFirst({
       where: { email, isActive: true },
-      include: { company: { select: { id: true, name: true } } },
+      include: {
+        company: { select: { id: true, name: true } },
+        bookAccess: { select: { bookId: true } },
+        moduleGrants: { select: { module: true, canDelegate: true } },
+      },
     });
 
     if (!user) {
@@ -58,6 +62,11 @@ router.post('/login', async (req, res) => {
         role: user.role,
         companyId: user.companyId,
         companyName: user.company?.name,
+        canViewPortfolio: user.role === 'PRESIDENT' || user.canViewPortfolio,
+        moduleGrants: user.moduleGrants.map((g) => ({
+          module: g.module,
+          canDelegate: g.canDelegate,
+        })),
         mfaEnabled: user.mfaEnabled,
       },
     });

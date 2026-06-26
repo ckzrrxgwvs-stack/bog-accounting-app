@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { bootstrapUsersEnabled } from '../lib/bootstrapUsers';
 import { getOrCreateDefaultCompany } from './companyBootstrap';
 import { ensureAllInvestmentBooks } from './investmentBooks';
+import { ensureDefaultPortfolioBooks } from './portfolioBooks';
 import { useDatabase } from '../lib/dbMode';
 
 const DEMO_PASSWORD = process.env.BOG_BOOTSTRAP_PASSWORD?.trim() || 'demo123';
@@ -69,7 +70,9 @@ export async function ensureProgramBootstrap(options?: { force?: boolean }): Pro
     }
 
     await ensureAllInvestmentBooks();
+    await ensureDefaultPortfolioBooks(company.id);
     console.log('   ✓ Investment books ready (Agentic ••••2117 + Personal ••••2686)');
+    console.log('   ✓ Portfolio books linked under company');
 
     bootstrapped = true;
   } catch (e) {

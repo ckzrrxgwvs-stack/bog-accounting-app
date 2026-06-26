@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User, UserRoleType } from '@/types';
 import { api } from '@/services/api';
-import { checkPermissionForRole, hasModuleAccessForRole } from '@/lib/permissions';
+import { checkPermissionForRole, hasModuleAccessForUser } from '@/lib/permissions';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 
@@ -60,6 +60,11 @@ export const useAuthStore = create<AuthState>()(
               mfaEnabled: Boolean(u.mfaEnabled),
               isActive: true,
               companyId: String(u.companyId ?? '1'),
+              companyName: typeof u.companyName === 'string' ? u.companyName : undefined,
+              canViewPortfolio: Boolean(u.canViewPortfolio) || (u.role as UserRoleType) === 'PRESIDENT',
+              moduleGrants: Array.isArray(u.moduleGrants)
+                ? (u.moduleGrants as Array<{ module: string; canDelegate: boolean }>)
+                : undefined,
               createdAt: new Date(),
               updatedAt: new Date(),
             };
@@ -118,7 +123,10 @@ export const useAuthStore = create<AuthState>()(
       loginFromOwnerSetup: (token: string, user: User) => {
         persistApiToken(token);
         set({
-          user,
+          user: {
+            ...user,
+            canViewPortfolio: user.canViewPortfolio ?? user.role === 'PRESIDENT',
+          },
           token,
           isAuthenticated: true,
           isLoading: false,
@@ -171,7 +179,10 @@ export const useAuthStore = create<AuthState>()(
       hasModuleAccess: (module: string) => {
         const user = get().user;
         if (!user) return false;
-        return hasModuleAccessForRole(user.role, module);
+        if (module === 'users' && user.moduleGrants?.some((g) => g.canDelegate)) {
+          return true;
+        }
+        return hasModuleAccessForUser(user.role, module, user.moduleGrants);
       },
     }),
     {
