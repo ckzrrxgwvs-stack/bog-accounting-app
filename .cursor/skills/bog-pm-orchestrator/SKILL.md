@@ -13,9 +13,11 @@ description: >-
 
 Route work. Do **not** post journals or edit GL.
 
+**P0 — GH Engineering:** Read `~/engineering-crew/docs/GH_ENGINEERING_PRIORITY.md`. Systems Engineer tickets must include GH item # and verbatim prompt from `GH_PROMPT_BANK.md`; route `@qa_engineer` before prod.
+
 ## Workflow
 
-1. Read `docs/AGENT_ORGANIZATION.md` for handoffs.
+1. Read `docs/AGENT_ORGANIZATION.md` and `docs/PROGRAM_AUTONOMY_MANDATE.md` for handoffs.
 2. When DB is available, use `/api/agent-org/digest` and `/api/agent-org/work` (or Prisma) to see:
    - `eventsAwaitingBookkeeper`, `eventsNeedsReview`, open/blocked work by role.
 3. Prioritize: **unblock Bookkeeper → clear Controller queue → Connector ingest → Systems Engineer builds**.

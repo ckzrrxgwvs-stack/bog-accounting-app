@@ -7,10 +7,11 @@ alwaysApply: true
 
 Before building, deploying, or refactoring **BOG accounting-app**:
 
-1. Read **`~/engineering-crew/docs/GH_PROMPT_BANK.md`**
-2. Read **`docs/GH_COMPLIANCE.md`**
-3. Match to GH item; **verbatim prompt**; **item 8** for Face I vs Face II scope
-4. Route through **`@qa_engineer`** before production deploy
-5. Log in **`~/engineering-crew/docs/WORK_PROCEDURE_LOG.md`**
+1. Read **`~/engineering-crew/docs/GH_ENGINEERING_PRIORITY.md`**
+2. Read **`~/engineering-crew/docs/GH_PROMPT_BANK.md`**
+3. Read **`docs/GH_COMPLIANCE.md`**
+4. Match to GH item; **verbatim prompt**; **item 8** for Face I vs Face II scope
+5. Route through **`@qa_engineer`** before production deploy
+6. Log in **`~/engineering-crew/docs/WORK_PROCEDURE_LOG.md`**
 
 **This project priorities:** #9 API auth → #10 CI/CD + backend deploy → #8 Face I scope.

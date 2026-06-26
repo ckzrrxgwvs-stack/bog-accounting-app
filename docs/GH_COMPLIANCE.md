@@ -1,33 +1,33 @@
-# GH Compliance — BOG Accounting App
+# GH Compliance — BOG Accounting
 
 **Bank:** `~/engineering-crew/docs/GH_PROMPT_BANK.md`  
-**Portfolio tracker:** `~/engineering-crew/docs/GH_PORTFOLIO_COMPLIANCE.md`
+**Standing order:** `~/engineering-crew/docs/GH_ENGINEERING_PRIORITY.md`  
+**Manager:** `@manager` / `bog-pm-orchestrator`
 
 ## Active GH priorities
 
 ### P0 — Security (#9)
-- [ ] JWT middleware on **all** mutating routes
-- [ ] `companyId` from JWT on every Prisma query (tenant isolation)
-- [ ] CORS restricted to `FRONTEND_URL` in production
-- [ ] Remove demo MFA bypass; implement server-side TOTP
-- [ ] Disable `SKIP_GL_AUTH` in production
+- [ ] JWT on all mutating routes globally
+- [ ] CORS lockdown for production
+- [ ] Run `@security_auditor` before Render deploy
 
 ### P0 — DevOps (#10)
-- [ ] Deploy Express API (Render/Railway) with env vars
-- [ ] Wire `VITE_API_URL` on Vercel to deployed API
-- [ ] GitHub Actions: lint + `tsc -b` + `build:ci`
-- [ ] Versioned Prisma migrations (replace ad-hoc `db push`)
+- [ ] GitHub Actions `build:ci` on push
+- [ ] Render API + `VITE_API_URL` wired
 
-### P0 — Tech lead (#8)
-- [ ] Face I accounting kernel before expanding Face II ERP UI
-- [ ] Per `docs/MODULE_ROADMAP.md` phases 1–7 as launch gate
+### P0 — Product hardening (#7 + #5)
+- [x] Live Postgres-only books (no demo ledger)
+- [x] P20–P40 autonomy backlog (aging, period wizard, bank stub, ingest)
+- [ ] shadcn / component system consistency
 
-### P1 — Quality (#2 + tests)
-- [ ] Integration tests: GL posting, period close, invoice→ledger
-- [ ] Playwright smoke: login → journal entry golden path
+## When to invoke which agent
 
-## Compliance log
-
-| Date | Item | Status | Note |
-|------|------|--------|------|
-| 2026-06-23 | 2, 8, 9, 10 | ✅/🔄 | Portfolio audit; compliance doc created |
+| Situation | GH # | Agent |
+|-----------|------|-------|
+| New feature ticket | 8 → 6/7 | `@technical_lead` → `bog-systems-engineer` |
+| Unfamiliar module | 2 | `@codebase_auditor` |
+| GL / posting bug | 3 | `@production_debugger` |
+| Slow reports | 4 | `@performance_engineer` |
+| Ledger duplication risk | 5 | `@clean_architecture_engineer` |
+| Pre-deploy | 9 | `@security_auditor` |
+| CI/CD | 10 | `@senior_devops_engineer` |
