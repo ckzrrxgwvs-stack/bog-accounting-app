@@ -27,10 +27,17 @@ const claimLimiter = rateLimit({
 const presidentChain = [requireAuthRoles(UserRoleType.PRESIDENT)];
 
 function issuerSecretOk(req: { headers: Record<string, unknown> }): boolean {
-  const secret = process.env.TESTER_INVITE_ISSUER_SECRET?.trim();
-  if (!secret) return false;
-  const header = req.headers['x-tester-invite-secret'];
-  return typeof header === 'string' && header === secret;
+  const testerSecret = process.env.TESTER_INVITE_ISSUER_SECRET?.trim();
+  if (testerSecret) {
+    const header = req.headers['x-tester-invite-secret'];
+    if (typeof header === 'string' && header === testerSecret) return true;
+  }
+  const cronSecret = process.env.AGENT_ORG_CRON_SECRET?.trim();
+  if (cronSecret) {
+    const cronHeader = req.headers['x-agent-org-secret'];
+    if (typeof cronHeader === 'string' && cronHeader === cronSecret) return true;
+  }
+  return false;
 }
 
 function requirePresidentOrIssuerSecret(req: Request, res: Response, next: NextFunction) {
