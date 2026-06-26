@@ -3,9 +3,9 @@
  */
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
 import { requireDatabase } from '../lib/requireDatabase';
+import { issueAuthToken } from '../lib/issueAuthToken';
 
 const router = Router();
 
@@ -37,21 +37,11 @@ router.post('/login', async (req, res) => {
       return;
     }
 
-    const secret = process.env.JWT_SECRET || 'dev-only-set-JWT_SECRET-in-production';
-    if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
-      res.status(503).json({ error: 'JWT_SECRET must be set in production' });
-      return;
-    }
-
-    const token = jwt.sign(
-      {
-        sub: user.id,
-        companyId: user.companyId,
-        role: user.role,
-      },
-      secret,
-      { expiresIn: '7d' }
-    );
+    const token = issueAuthToken({
+      id: user.id,
+      companyId: user.companyId,
+      role: user.role,
+    });
 
     await prisma.user.update({
       where: { id: user.id },

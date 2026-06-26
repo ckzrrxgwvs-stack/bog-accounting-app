@@ -6,8 +6,13 @@ import { Prisma, UserRoleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { requireDatabase } from '../lib/requireDatabase';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
+import { requireAuthRoles } from '../middleware/requireAuthRoles';
+import { isBootstrapUserEmail } from '../lib/bootstrapUsers';
 
 const router = Router();
+
+const adminRoles = [UserRoleType.PRESIDENT, UserRoleType.CFO, UserRoleType.CONTROLLER] as const;
+const adminChain = [requireAuthRoles(...adminRoles)];
 
 function mapUser(u: {
   id: string;
@@ -19,6 +24,7 @@ function mapUser(u: {
   mfaEnabled: boolean;
   companyId: string;
   createdAt: Date;
+  lastLoginAt: Date | null;
 }) {
   return {
     id: u.id,
@@ -30,10 +36,11 @@ function mapUser(u: {
     mfaEnabled: u.mfaEnabled,
     companyId: u.companyId,
     createdAt: u.createdAt.toISOString(),
+    lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
   };
 }
 
-router.get('/', async (_req, res) => {
+router.get('/', ...adminChain, async (_req, res) => {
   if (!requireDatabase(res)) return;
   try {
     const company = await getOrCreateDefaultCompany();
@@ -48,7 +55,7 @@ router.get('/', async (_req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', ...adminChain, async (req, res) => {
   if (!requireDatabase(res)) return;
   const { email, firstName, lastName, role, password } = req.body as {
     email?: string;
@@ -66,6 +73,10 @@ router.post('/', async (req, res) => {
     res.status(400).json({ error: 'Password must be at least 8 characters' });
     return;
   }
+  if (isBootstrapUserEmail(email)) {
+    res.status(400).json({ error: 'Bootstrap email addresses are reserved' });
+    return;
+  }
 
   try {
     const company = await getOrCreateDefaultCompany();
@@ -78,7 +89,7 @@ router.post('/', async (req, res) => {
         role: role as UserRoleType,
         companyId: company.id,
         passwordHash,
-        mfaEnabled: true,
+        mfaEnabled: false,
         isActive: true,
       },
     });
@@ -90,7 +101,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', ...adminChain, async (req, res) => {
   if (!requireDatabase(res)) return;
 
   try {
@@ -125,7 +136,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.put('/:id/role', async (req, res) => {
+router.put('/:id/role', ...adminChain, async (req, res) => {
   if (!requireDatabase(res)) return;
   const { role } = req.body as { role?: string };
   if (!role) {
@@ -144,10 +155,24 @@ router.put('/:id/role', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', ...adminChain, async (req, res) => {
   if (!requireDatabase(res)) return;
 
   try {
+    const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!target) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    if (target.role === UserRoleType.PRESIDENT) {
+      const presidents = await prisma.user.count({
+        where: { companyId: target.companyId, role: UserRoleType.PRESIDENT, isActive: true },
+      });
+      if (presidents <= 1) {
+        res.status(400).json({ error: 'Cannot delete the only active President' });
+        return;
+      }
+    }
     await prisma.user.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch {

@@ -1,7 +1,7 @@
 // Login page con personalidad profesional
 
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/services/api';
 import { Mail, Lock, Eye, EyeOff, Shield, ArrowRight, Check, KeyRound } from 'lucide-react';
@@ -22,6 +22,16 @@ export function Login() {
   const [regBusy, setRegBusy] = useState(false);
   const [regMessage, setRegMessage] = useState<string | null>(null);
   const [regError, setRegError] = useState<string | null>(null);
+  const [needsOwnerSetup, setNeedsOwnerSetup] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await api.getOwnerSetupStatus();
+      if (res.success && res.data?.needsOwnerSetup) {
+        setNeedsOwnerSetup(true);
+      }
+    })();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,9 +183,33 @@ export function Login() {
           <div className="mb-6 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-100">
             <p className="font-semibold text-emerald-900 text-sm">Local program</p>
             <p className="text-xs text-emerald-700 mt-1">
-              Run <code className="font-mono">pnpm run go-live:local</code> then sign in with bootstrap users from your .env.
+              {needsOwnerSetup ? (
+                <>
+                  First time?{' '}
+                  <Link to="/setup-owner" className="font-medium underline">
+                    Create your President account
+                  </Link>{' '}
+                  or run <code className="font-mono">pnpm run go-live:local</code> for bootstrap dev users.
+                </>
+              ) : (
+                <>
+                  Run <code className="font-mono">pnpm run go-live:local</code> or sign in with your organization credentials.
+                </>
+              )}
             </p>
           </div>
+          )}
+
+          {needsOwnerSetup && isProductionApi && (
+            <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-semibold text-amber-900">First-time setup required</p>
+              <p className="mt-1 text-xs text-amber-800">
+                <Link to="/setup-owner" className="font-medium underline">
+                  Create your President login
+                </Link>{' '}
+                with your email and password before signing in.
+              </p>
+            </div>
           )}
 
           <form onSubmit={handleLogin} className="space-y-4">

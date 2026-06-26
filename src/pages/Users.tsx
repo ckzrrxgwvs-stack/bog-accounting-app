@@ -1,8 +1,9 @@
-// User Management Page - Full CRUD with Roles and MFA
+// User Management Page — live PostgreSQL via /api/users
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Search, Edit, Trash2, Shield, Mail, User, Check, X, Key, Eye, EyeOff } from 'lucide-react';
 import { UserRole, ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/types/permissions';
+import { api } from '@/services/api';
 
 interface UserData {
   id: string;
@@ -21,67 +22,16 @@ interface NewUserForm {
   firstName: string;
   lastName: string;
   role: UserRole;
+  password: string;
+  generatePassword: boolean;
   sendInvite: boolean;
 }
 
 export function Users() {
-  const [users, setUsers] = useState<UserData[]>([
-    {
-      id: '1',
-      email: 'john.smith@company.com',
-      firstName: 'John',
-      lastName: 'Smith',
-      role: 'PRESIDENT',
-      mfaEnabled: true,
-      isActive: true,
-      lastLoginAt: '2026-04-29T08:30:00',
-      createdAt: '2026-01-15T10:00:00',
-    },
-    {
-      id: '2',
-      email: 'sarah.johnson@company.com',
-      firstName: 'Sarah',
-      lastName: 'Johnson',
-      role: 'CFO',
-      mfaEnabled: true,
-      isActive: true,
-      lastLoginAt: '2026-04-28T17:45:00',
-      createdAt: '2026-01-20T14:30:00',
-    },
-    {
-      id: '3',
-      email: 'carlos.rodriguez@company.com',
-      firstName: 'Carlos',
-      lastName: 'Rodriguez',
-      role: 'ACCOUNTANT',
-      mfaEnabled: true,
-      isActive: true,
-      lastLoginAt: '2026-04-29T09:15:00',
-      createdAt: '2026-02-01T09:00:00',
-    },
-    {
-      id: '4',
-      email: 'maria.garcia@company.com',
-      firstName: 'Maria',
-      lastName: 'Garcia',
-      role: 'AR_CLERK',
-      mfaEnabled: true,
-      isActive: true,
-      lastLoginAt: '2026-04-27T14:00:00',
-      createdAt: '2026-02-10T11:00:00',
-    },
-    {
-      id: '5',
-      email: 'david.wilson@company.com',
-      firstName: 'David',
-      lastName: 'Wilson',
-      role: 'AP_CLERK',
-      mfaEnabled: false,
-      isActive: false,
-      lastLoginAt: '2026-03-15T16:30:00',
-      createdAt: '2026-02-15T08:00:00',
-    },
-  ]);
+  const [users, setUsers] = useState<UserData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -95,9 +45,28 @@ export function Users() {
     email: '',
     firstName: '',
     lastName: '',
-    role: 'READONLY',
-    sendInvite: true,
+    role: 'ACCOUNTANT',
+    password: '',
+    generatePassword: false,
+    sendInvite: false,
   });
+
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    const res = await api.getUsers();
+    setLoading(false);
+    if (!res.success) {
+      setLoadError(res.error ?? 'Failed to load users');
+      return;
+    }
+    const payload = res.data as { users?: UserData[] };
+    setUsers(payload.users ?? []);
+  }, []);
+
+  useEffect(() => {
+    void loadUsers();
+  }, [loadUsers]);
 
   const [editForm, setEditForm] = useState({
     firstName: '',
@@ -130,60 +99,92 @@ export function Users() {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  const handleAddUser = () => {
-    const newUser: UserData = {
-      id: Date.now().toString(),
+  const handleAddUser = async () => {
+    setActionError(null);
+    const password =
+      newUserForm.generatePassword
+        ? Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'[b % 58]).join('')
+        : newUserForm.password;
+    if (password.length < 8) {
+      setActionError('Password must be at least 8 characters');
+      return;
+    }
+    const res = await api.createUser({
       email: newUserForm.email,
       firstName: newUserForm.firstName,
       lastName: newUserForm.lastName,
       role: newUserForm.role,
-      mfaEnabled: false,
-      isActive: true,
-      lastLoginAt: null,
-      createdAt: new Date().toISOString(),
-    };
-
-    setUsers([...users, newUser]);
+      password,
+    });
+    if (!res.success) {
+      setActionError(res.error ?? 'Could not create user');
+      return;
+    }
+    if (newUserForm.generatePassword) {
+      alert(`User created. Generated password (save now):\n${password}`);
+    }
     setShowAddModal(false);
     setNewUserForm({
       email: '',
       firstName: '',
       lastName: '',
-      role: 'READONLY',
-      sendInvite: true,
+      role: 'ACCOUNTANT',
+      password: '',
+      generatePassword: false,
+      sendInvite: false,
     });
+    await loadUsers();
   };
 
-  const handleEditUser = () => {
+  const handleEditUser = async () => {
     if (!selectedUser) return;
-
-    setUsers(users.map(u =>
-      u.id === selectedUser.id
-        ? { ...u, ...editForm }
-        : u
-    ));
+    setActionError(null);
+    const res = await api.updateUser(selectedUser.id, {
+      firstName: editForm.firstName,
+      lastName: editForm.lastName,
+    });
+    if (!res.success) {
+      setActionError(res.error ?? 'Update failed');
+      return;
+    }
     setShowEditModal(false);
     setSelectedUser(null);
+    await loadUsers();
   };
 
-  const handleDeleteUser = (userId: string) => {
-    if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      setUsers(users.filter(u => u.id !== userId));
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
+    setActionError(null);
+    const res = await api.deleteUser(userId);
+    if (!res.success) {
+      setActionError(res.error ?? 'Delete failed');
+      return;
     }
+    await loadUsers();
   };
 
-  const handleToggleActive = (userId: string) => {
-    setUsers(users.map(u =>
-      u.id === userId ? { ...u, isActive: !u.isActive } : u
-    ));
+  const handleToggleActive = async (userId: string) => {
+    const user = users.find((u) => u.id === userId);
+    if (!user) return;
+    setActionError(null);
+    const res = await api.updateUser(userId, { isActive: !user.isActive });
+    if (!res.success) {
+      setActionError(res.error ?? 'Update failed');
+      return;
+    }
+    await loadUsers();
   };
 
-  const handleChangeRole = (userId: string, newRole: UserRole) => {
-    setUsers(users.map(u =>
-      u.id === userId ? { ...u, role: newRole } : u
-    ));
+  const handleChangeRole = async (userId: string, newRole: UserRole) => {
+    setActionError(null);
+    const res = await api.updateUserRole(userId, newRole);
+    if (!res.success) {
+      setActionError(res.error ?? 'Role update failed');
+      return;
+    }
     setShowRoleModal(false);
     setSelectedUser(null);
+    await loadUsers();
   };
 
   const openEditModal = (user: UserData) => {
@@ -239,14 +240,22 @@ export function Users() {
         </div>
       </div>
 
+      {loadError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{loadError}</div>
+      )}
+      {actionError && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{actionError}</div>
+      )}
+      {loading && <p className="mb-4 text-sm text-gray-500">Loading users from database…</p>}
+
       {/* Security Notice */}
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
         <div className="flex items-start">
           <Shield className="text-amber-600 mt-0.5 mr-3" size={20} />
           <div>
-            <h3 className="font-medium text-amber-800">Security Configuration</h3>
+            <h3 className="font-medium text-amber-800">Live PostgreSQL users</h3>
             <p className="text-sm text-amber-600 mt-1">
-              MFA is required for all users. Users without MFA enabled cannot access the system.
+              Users are stored in Postgres. President/CFO/Controller can add staff with a password or generate one.
             </p>
           </div>
         </div>
@@ -463,6 +472,29 @@ export function Users() {
                 </select>
                 <p className="text-xs text-gray-500 mt-1">{ROLE_DESCRIPTIONS[newUserForm.role as UserRole]}</p>
               </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="generatePassword"
+                  checked={newUserForm.generatePassword}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, generatePassword: e.target.checked })}
+                />
+                <label htmlFor="generatePassword" className="text-sm text-gray-600">
+                  Generate secure password
+                </label>
+              </div>
+              {!newUserForm.generatePassword && (
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1">Password</label>
+                  <input
+                    type="password"
+                    minLength={8}
+                    value={newUserForm.password}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                  />
+                </div>
+              )}
               <div className="flex items-center">
                 <input
                   type="checkbox"
@@ -484,7 +516,7 @@ export function Users() {
                 Cancel
               </button>
               <button
-                onClick={handleAddUser}
+                onClick={() => void handleAddUser()}
                 className="px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800"
               >
                 Add User
@@ -554,7 +586,7 @@ export function Users() {
                 Cancel
               </button>
               <button
-                onClick={handleEditUser}
+                onClick={() => void handleEditUser()}
                 className="px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800"
               >
                 Save Changes
@@ -575,7 +607,7 @@ export function Users() {
               {Object.entries(ROLE_LABELS).map(([value, label]) => (
                 <button
                   key={value}
-                  onClick={() => handleChangeRole(selectedUser.id, value as UserRole)}
+                  onClick={() => void handleChangeRole(selectedUser.id, value as UserRole)}
                   className={`w-full text-left p-4 rounded-lg border transition-colors ${
                     selectedUser.role === value
                       ? 'border-black bg-gray-50'

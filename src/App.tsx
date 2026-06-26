@@ -32,6 +32,7 @@ import { DataStudio } from './pages/DataStudio';
 import { FinancialConnections } from './pages/FinancialConnections';
 import { MicrosoftOfficeHub } from './pages/MicrosoftOfficeHub';
 import { Login } from './pages/Login';
+import { OwnerSetup } from './pages/OwnerSetup';
 import { useAuthStore } from './stores/authStore';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -56,6 +57,7 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/setup-owner" element={<OwnerSetup />} />
 
         {/* Protected routes */}
         <Route

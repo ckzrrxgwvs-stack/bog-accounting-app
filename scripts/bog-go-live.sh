@@ -30,7 +30,7 @@ echo "→ Pushing schema..."
 pnpm exec prisma db push
 
 echo "→ Seeding company + users..."
-pnpm exec tsx server/scripts/bootstrapBogProgram.ts
+BOG_BOOTSTRAP_USERS=1 pnpm exec tsx server/scripts/bootstrapBogProgram.ts
 
 if ! grep -q '^DATABASE_URL=postgresql://postgres:boglocal@localhost:5433/accounting' .env 2>/dev/null; then
   echo ""
@@ -41,7 +41,8 @@ fi
 echo ""
 echo "✓ Ready. Run:  pnpm run dev:program"
 echo "  Open:        http://localhost:5173"
-echo "  Login:       admin@company.com / demo123"
+  echo "  Login:       admin@company.com / demo123"
+  echo "  Or:          http://localhost:5173/setup-owner (your own President login)"
 echo ""
 echo "Optional: recreate Desktop launcher for local:"
 echo "  BOG_APP_URL=http://localhost:5173 ./scripts/create-mac-desktop-launcher.sh"

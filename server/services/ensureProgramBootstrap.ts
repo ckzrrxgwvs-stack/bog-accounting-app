@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { UserRoleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { bootstrapUsersEnabled } from '../lib/bootstrapUsers';
 import { getOrCreateDefaultCompany } from './companyBootstrap';
 import { ensureAllInvestmentBooks } from './investmentBooks';
 import { useDatabase } from '../lib/dbMode';
@@ -37,32 +38,35 @@ export async function ensureProgramBootstrap(options?: { force?: boolean }): Pro
     });
 
     const hash = await bcrypt.hash(DEMO_PASSWORD, 12);
-    for (const u of USERS) {
-      await prisma.user.upsert({
-        where: { email: u.email },
-        create: {
-          email: u.email,
-          passwordHash: hash,
-          firstName: u.firstName,
-          lastName: u.lastName,
-          role: u.role,
-          companyId: company.id,
-          isActive: true,
-          mfaEnabled: false,
-        },
-        update: {
-          passwordHash: hash,
-          firstName: u.firstName,
-          lastName: u.lastName,
-          role: u.role,
-          companyId: company.id,
-          isActive: true,
-          mfaEnabled: false,
-        },
-      });
+    if (bootstrapUsersEnabled()) {
+      for (const u of USERS) {
+        await prisma.user.upsert({
+          where: { email: u.email },
+          create: {
+            email: u.email,
+            passwordHash: hash,
+            firstName: u.firstName,
+            lastName: u.lastName,
+            role: u.role,
+            companyId: company.id,
+            isActive: true,
+            mfaEnabled: false,
+          },
+          update: {
+            passwordHash: hash,
+            firstName: u.firstName,
+            lastName: u.lastName,
+            role: u.role,
+            companyId: company.id,
+            isActive: true,
+            mfaEnabled: false,
+          },
+        });
+      }
+      console.log(`   ✓ Program bootstrap: ${USERS.length} demo users ready (BOG_BOOTSTRAP_USERS=1)`);
+    } else {
+      console.log('   ✓ Program bootstrap: company + COA (no demo users — use /setup-owner or BOG_BOOTSTRAP_USERS=1)');
     }
-
-    console.log(`   ✓ Program bootstrap: ${USERS.length} demo users ready`);
 
     await ensureAllInvestmentBooks();
     console.log('   ✓ Investment books ready (Agentic ••••2117 + Personal ••••2686)');

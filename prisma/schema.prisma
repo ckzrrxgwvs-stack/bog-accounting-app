@@ -64,6 +64,9 @@ model Company {
   useShopifyConnector Boolean @default(false)
   shopifyStoreDomain  String?
 
+  /** When set, Human completed first-run owner setup (custom President login). */
+  ownerSetupCompletedAt DateTime?
+
   // Timestamps
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

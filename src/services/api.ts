@@ -103,6 +103,35 @@ class ApiClient {
     });
   }
 
+  async getOwnerSetupStatus() {
+    return this.request<{
+      needsOwnerSetup: boolean;
+      ownerSetupCompleted: boolean;
+      bootstrapUsersAvailable: boolean;
+      presidentEmail: string | null;
+      options: {
+        availableNow: Array<{ id: string; label: string; description: string }>;
+        availableLater: Array<{ id: string; label: string; description: string }>;
+      };
+    }>('/setup/owner-status', { skipAuth: true });
+  }
+
+  async completeOwnerSetup(body: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    password?: string;
+    generatePassword?: boolean;
+    companyName?: string;
+    deactivateBootstrapUsers?: boolean;
+  }) {
+    return this.request<{
+      token: string;
+      generatedPassword?: string;
+      user: Record<string, unknown>;
+    }>('/setup/owner', { method: 'POST', body, skipAuth: true });
+  }
+
   async getDashboardFinancials(params?: { month?: number; year?: number; book?: string }) {
     const q = new URLSearchParams();
     if (params?.month != null) q.set('month', String(params.month));

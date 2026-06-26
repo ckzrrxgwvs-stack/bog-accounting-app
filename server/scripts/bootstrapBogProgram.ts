@@ -2,11 +2,12 @@
  * One-shot bootstrap: company + COA + executive demo users (API login).
  * Usage: pnpm run db:bootstrap
  */
-import { config } from 'dotenv';
+import { bootstrapUsersEnabled } from '../lib/bootstrapUsers';
 import bcrypt from 'bcryptjs';
 import { UserRoleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
+import { bootstrapUsersEnabled } from '../lib/bootstrapUsers';
 
 config({ override: true });
 
@@ -44,7 +45,8 @@ async function main() {
 
   const hash = await bcrypt.hash(DEMO_PASSWORD, 12);
 
-  for (const u of USERS) {
+  if (bootstrapUsersEnabled()) {
+    for (const u of USERS) {
     const existing = await prisma.user.findUnique({ where: { email: u.email } });
     if (existing) {
       if (process.env.BOG_BOOTSTRAP_RESET === '1') {
@@ -71,13 +73,20 @@ async function main() {
       },
     });
     console.log(`  created user ${u.email} (${u.role})`);
+    }
+  } else {
+    console.log('  skip demo users (set BOG_BOOTSTRAP_USERS=1 for admin@company.com / demo123)');
   }
 
   const accountCount = await prisma.account.count({ where: { companyId: company.id } });
   console.log('\n✓ BOG program bootstrap complete');
   console.log(`  Company: ${company.id}`);
   console.log(`  Chart of accounts: ${accountCount} accounts`);
-  console.log(`  Login (API): admin@company.com / ${DEMO_PASSWORD}`);
+  if (bootstrapUsersEnabled()) {
+    console.log(`  Login (API): admin@company.com / ${DEMO_PASSWORD}`);
+  } else {
+    console.log('  Next: open http://localhost:5173/setup-owner to create your President login');
+  }
   console.log('  Next: pnpm run dev:program → http://localhost:5173');
 }
 

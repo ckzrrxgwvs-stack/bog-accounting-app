@@ -24,6 +24,7 @@ View queue: `GET /api/agent-org/work` (President/CFO JWT) or Prisma `AgentWorkIt
 | 45 | Financial institution electronic linking (registry + sandbox) | ✅ DONE |
 | 50 | Microsoft Office hub (.xlsx / .docx) | ✅ DONE |
 | 55 | Visual ergonomics & comfort mode | ✅ DONE |
+| 60 | Owner setup wizard + live Users page | ✅ DONE |
 
 ## Implemented (2026-06-25)
 
@@ -34,8 +35,9 @@ View queue: `GET /api/agent-org/work` (President/CFO JWT) or Prisma `AgentWorkIt
 - **P45** — `FinancialInstitutionConnection` model; `/integrations/financial`; Plaid/MX/PayPal registry + sandbox sync.
 - **P50** — `/office` hub; Excel export/import; Word legal templates via `/api/office`.
 - **P55** — Comfort mode, ⌘K command palette, Settings → Display & comfort.
+- **P60** — `/setup-owner` wizard; `GET/POST /api/setup/owner*`; Users page wired to Postgres; `BOG_BOOTSTRAP_USERS` gated dev accounts.
 
-**After pull:** run `pnpm exec prisma db push` (or migrate) for bank feed + financial connection tables.
+**After pull:** run `pnpm exec prisma db push` for `ownerSetupCompletedAt` on Company.
 
 ## Next backlog (deferred)
 

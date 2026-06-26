@@ -24,6 +24,7 @@ interface AuthState {
 
   // Actions
   login: (email: string, password: string) => Promise<void>;
+  loginFromOwnerSetup: (token: string, user: User) => void;
   logout: () => void;
   verifyMFA: (code: string) => Promise<void>;
   setUser: (user: User) => void;
@@ -112,6 +113,18 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: false });
           throw error;
         }
+      },
+
+      loginFromOwnerSetup: (token: string, user: User) => {
+        persistApiToken(token);
+        set({
+          user,
+          token,
+          isAuthenticated: true,
+          isLoading: false,
+          mfaRequired: false,
+          mfaVerified: true,
+        });
       },
 
       logout: () => {
