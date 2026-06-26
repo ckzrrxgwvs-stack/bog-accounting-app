@@ -2,7 +2,12 @@
 # Save production family preview link for Desktop share icon (one line).
 set -euo pipefail
 
-URL="${1:-}"
+URL=""
+for arg in "$@"; do
+  [[ "${arg}" == "--" ]] && continue
+  URL="${arg}"
+done
+
 URL_FILE="${BOG_FAMILY_PREVIEW_URL_FILE:-${HOME}/.bog-family-preview.url}"
 
 if [[ -z "${URL}" ]]; then
