@@ -115,6 +115,7 @@ model Company {
   agentWorkItems      AgentWorkItem[]
   bankFeedAccounts    BankFeedAccount[]
   bankFeedTransactions BankFeedTransaction[]
+  financialInstitutionConnections FinancialInstitutionConnection[]
 }
 
 enum AiMemoryChannel {
@@ -366,7 +367,7 @@ model ClosedPeriod {
   @@index([companyId])
 }
 
-/** Bank feed account — CSV import stub; no live Plaid/MX until Human approves. */
+/** Bank feed account — CSV import or electronic institution link. */
 model BankFeedAccount {
   id            String   @id @default(cuid())
   companyId     String
@@ -375,13 +376,61 @@ model BankFeedAccount {
   accountMask   String?
   currency      String   @default("USD")
   isActive      Boolean  @default(true)
+  connectionId  String?  @unique
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  connection    FinancialInstitutionConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
   transactions  BankFeedTransaction[]
 
   @@index([companyId])
+}
+
+enum FinancialInstitutionType {
+  BANK
+  CREDIT_CARD
+  PAYPAL
+}
+
+enum FinancialConnectionProvider {
+  PLAID
+  MX
+  PAYPAL
+  MANUAL_CSV
+  SANDBOX
+}
+
+enum FinancialConnectionStatus {
+  PENDING
+  CONNECTED
+  NEEDS_REAUTH
+  DISCONNECTED
+  ERROR
+}
+
+/** Electronic link to banks, cards, or PayPal — ready for live OAuth when Human approves provider credentials. */
+model FinancialInstitutionConnection {
+  id                String                      @id @default(cuid())
+  companyId         String
+  institutionType   FinancialInstitutionType
+  provider          FinancialConnectionProvider
+  displayName       String
+  institutionName   String?
+  accountMask       String?
+  status            FinancialConnectionStatus   @default(PENDING)
+  externalItemId    String?
+  externalAccountId String?
+  metadataJson      Json?
+  lastSyncAt        DateTime?
+  lastError         String?
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+
+  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bankFeedAccount   BankFeedAccount?
+
+  @@index([companyId, status])
 }
 
 model BankFeedTransaction {

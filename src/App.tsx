@@ -29,6 +29,8 @@ import { Manufacturing } from './pages/Manufacturing';
 import { ErpLogistics } from './pages/ErpLogistics';
 import { ErpAssistant } from './pages/ErpAssistant';
 import { DataStudio } from './pages/DataStudio';
+import { FinancialConnections } from './pages/FinancialConnections';
+import { MicrosoftOfficeHub } from './pages/MicrosoftOfficeHub';
 import { Login } from './pages/Login';
 import { useAuthStore } from './stores/authStore';
 
@@ -79,6 +81,8 @@ function App() {
           <Route path="payments" element={<Payments />} />
           <Route path="reports" element={<Reports />} />
           <Route path="data-studio" element={<DataStudio />} />
+          <Route path="integrations/financial" element={<FinancialConnections />} />
+          <Route path="office" element={<MicrosoftOfficeHub />} />
           <Route path="ai-cpa" element={<AICPA />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="payroll" element={<Payroll />} />

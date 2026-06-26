@@ -38,6 +38,7 @@ export async function importBankFeedCsv(opts: {
   institution?: string;
   rows: CsvRow[];
   dryRun: boolean;
+  externalIdPrefix?: string;
 }): Promise<{
   accountId: string | null;
   imported: number;
@@ -71,7 +72,7 @@ export async function importBankFeedCsv(opts: {
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const externalId = externalIdFor(row, i);
+    const externalId = `${opts.externalIdPrefix ?? ''}${externalIdFor(row, i)}`;
     const existing = await prisma.bankFeedTransaction.findFirst({
       where: { companyId, externalId },
     });

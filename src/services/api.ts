@@ -218,6 +218,118 @@ class ApiClient {
     }>('/bank-feeds/import-csv', { method: 'POST', body });
   }
 
+  async getFinancialProviders() {
+    return this.request<{
+      providers: Array<{
+        provider: string;
+        label: string;
+        institutionTypes: string[];
+        description: string;
+        liveReady: boolean;
+        envKeys: string[];
+        docsUrl?: string;
+      }>;
+    }>('/financial-connections/providers');
+  }
+
+  async getFinancialConnections() {
+    return this.request<{
+      connections: Array<{
+        id: string;
+        displayName: string;
+        institutionName: string | null;
+        institutionType: string;
+        provider: string;
+        status: string;
+        accountMask: string | null;
+        lastSyncAt: string | null;
+        lastError: string | null;
+        bankFeedAccountId: string | null;
+        transactionCount: number;
+      }>;
+      useBankFeeds: boolean;
+    }>('/financial-connections');
+  }
+
+  async connectFinancialInstitution(body: {
+    provider: string;
+    institutionType: string;
+    displayName: string;
+    institutionName?: string;
+    accountMask?: string;
+  }) {
+    return this.request<{
+      id: string;
+      status: string;
+      bankFeedAccountId: string | null;
+      lastError: string | null;
+    }>('/financial-connections/connect', { method: 'POST', body });
+  }
+
+  async syncFinancialConnection(id: string) {
+    return this.request<{ imported: number; skipped: number; accountId: string | null }>(
+      `/financial-connections/${id}/sync`,
+      { method: 'POST', body: {} }
+    );
+  }
+
+  async disconnectFinancialConnection(id: string) {
+    return this.request<{ ok: boolean }>(`/financial-connections/${id}`, { method: 'DELETE' });
+  }
+
+  async getOfficeCatalog() {
+    return this.request<{
+      excelExports: Array<{ id: string; label: string; format: string }>;
+      wordTemplates: Array<{ id: string; label: string; description: string }>;
+      note: string;
+    }>('/office/catalog');
+  }
+
+  async downloadOfficeFile(path: string, filename: string) {
+    const token = getAuthBearerToken();
+    const url = `${this.baseUrl}${path}`;
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error(`Download failed (${res.status})`);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async importJournalExcel(base64: string, dryRun = true) {
+    return this.request<{
+      dryRun: boolean;
+      rowCount: number;
+      missingAccountCodes: string[];
+      parseErrors: string[];
+      preview: Array<Record<string, unknown>>;
+      hint?: string;
+    }>('/office/excel/import/journals', { method: 'POST', body: { base64, dryRun } });
+  }
+
+  async generateWordDocument(template: string, variables?: Record<string, string>) {
+    const token = getAuthBearerToken();
+    const url = `${this.baseUrl}/office/word/generate`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ template, variables }),
+    });
+    if (!res.ok) throw new Error(`Word generation failed (${res.status})`);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${template}.docx`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   /** Trial balance CSV — triggers browser download when given blob handling on caller */
   async fetchTrialBalanceCsv(params: { month?: number; year?: number; book?: string }) {
     const q = new URLSearchParams();

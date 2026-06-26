@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
+import { ComfortModeProvider } from './context/ComfortModeContext.tsx'
 import './index.css'
 import App from './App.tsx'
 
@@ -14,7 +15,9 @@ if (viteApiBase && typeof window !== 'undefined') {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <ComfortModeProvider>
+        <App />
+      </ComfortModeProvider>
     </ErrorBoundary>
   </StrictMode>,
 )

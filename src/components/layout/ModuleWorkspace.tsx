@@ -12,17 +12,17 @@ type ModuleWorkspaceProps = {
 export function ModuleWorkspace({ label, title, description, actions, children }: ModuleWorkspaceProps) {
   return (
     <div className="bog-workspace border-b border-bog-rule">
-      <div className="border-b border-bog-rule bg-white/85 px-6 py-6 backdrop-blur-sm lg:px-8">
+      <div className="border-b border-bog-rule bg-white/90 px-6 py-6 backdrop-blur-sm lg:px-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+          <div className="max-w-3xl">
             <p className="bog-section-label mb-2">{label}</p>
-            <h1 className="text-2xl font-bold tracking-tight text-bog-ink lg:text-3xl">{title}</h1>
-            {description && <p className="mt-1 max-w-2xl text-sm text-zinc-600">{description}</p>}
+            <h1 className="text-2xl font-bold tracking-tight text-bog-ink lg:text-3xl leading-tight">{title}</h1>
+            {description && <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">{description}</p>}
           </div>
           {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
         </div>
       </div>
-      <div className="p-6 lg:p-8">{children}</div>
+      <div className="p-6 lg:p-8 bog-main-panel">{children}</div>
     </div>
   );
 }

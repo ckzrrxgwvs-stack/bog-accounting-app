@@ -33,8 +33,11 @@ import {
   PenLine,
   Lightbulb,
   Bot,
+  Link2,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { useCompanyPolicy } from '@/hooks/useCompanyPolicy';
+import { CommandPalette } from '@/components/CommandPalette';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, module: 'dashboard' },
@@ -51,6 +54,8 @@ const navigation = [
   { name: 'CFDI (Mexico)', href: '/cfdi', icon: FileCheck, module: 'cfdi' },
   { name: 'Reports', href: '/reports', icon: BarChart3, module: 'reports' },
   { name: 'Data Studio', href: '/data-studio', icon: Table2, module: 'reports' },
+  { name: 'Office hub', href: '/office', icon: FileSpreadsheet, module: 'reports' },
+  { name: 'Bank connections', href: '/integrations/financial', icon: Link2, module: 'settings' },
   { name: 'ERP hub', href: '/erp', icon: LayoutGrid, module: 'erp' },
   {
     name: 'ERP Assistant',
@@ -124,6 +129,7 @@ export function MainLayout() {
 
   return (
     <div className="min-h-screen bg-bog-paper text-bog-ink">
+      <CommandPalette />
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-bog-ink/40 backdrop-blur-[2px] lg:hidden"
@@ -151,7 +157,7 @@ export function MainLayout() {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4 bog-sidebar-nav">
           <p className="bog-section-label px-3 pb-2 pt-1">Workspace</p>
           {filteredNav.map((item) => {
             const isActive = navIsActive(location.pathname, item.href);
@@ -240,7 +246,7 @@ export function MainLayout() {
           </span>
         </header>
 
-        <main className="min-h-[calc(100vh-3.5rem)] lg:min-h-screen">
+        <main className="min-h-[calc(100vh-3.5rem)] lg:min-h-screen bog-main-content">
           {serverMode === 'schema_pending' && (
             <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
               Database connected — applying schema on API startup. Wait ~1 min, then click <strong>Refresh</strong> on

@@ -1,6 +1,7 @@
 // Settings Page - Company, Security, and System Configuration
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -28,7 +29,9 @@ import {
   KeyRound,
   Scale,
   RefreshCw,
+  Eye,
 } from 'lucide-react';
+import { useComfortMode } from '@/context/ComfortModeContext';
 
 interface TabItem {
   id: string;
@@ -40,6 +43,7 @@ const tabs: TabItem[] = [
   { id: 'company', label: 'Company', icon: <Building size={18} /> },
   { id: 'security', label: 'Security', icon: <Shield size={18} /> },
   { id: 'integrations', label: 'Integrations', icon: <Globe size={18} /> },
+  { id: 'display', label: 'Display & comfort', icon: <Eye size={18} /> },
   { id: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
   { id: 'audit', label: 'Audit Log', icon: <FileText size={18} /> },
 ];
@@ -90,6 +94,7 @@ interface CompanySettings {
 }
 
 export function Settings() {
+  const comfort = useComfortMode();
   const [activeTab, setActiveTab] = useState('company');
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [companyLoadError, setCompanyLoadError] = useState<string | null>(null);
@@ -810,9 +815,11 @@ export function Settings() {
           <div className="min-w-0">
             <h3 className="font-semibold text-black">Bank & cash connectivity</h3>
             <p className="text-sm text-gray-500 mt-1">
-              Turn these on when your company intends to use automated bank feeds, reconciliation, or initiated payments
-              later. The application does not connect to any bank today — these settings only store your preference on the
-              company record so future releases or custom integrations can read them.
+              Enable bank feeds here, then link institutions on the{' '}
+              <Link to="/integrations/financial" className="font-medium text-blue-600 underline">
+                Financial connections
+              </Link>{' '}
+              page (Plaid, MX, PayPal, CSV, or sandbox). Live OAuth requires server credentials — Human approval for production.
             </p>
           </div>
         </div>
@@ -1357,6 +1364,75 @@ export function Settings() {
     </div>
   );
 
+  const renderDisplayTab = () => (
+    <div className="space-y-6">
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <h3 className="font-semibold text-black mb-1">Visual ergonomics</h3>
+        <p className="text-sm text-gray-500 mb-6">
+          Tuned for teams who spend full days in the ledger. Preferences are saved in this browser. Press ⌘K (Ctrl+K) for quick navigation anywhere.
+        </p>
+        <div className="space-y-4">
+          {[
+            {
+              key: 'comfortMode' as const,
+              label: 'Comfort mode',
+              desc: 'Warmer paper tones and softer accent blue to reduce eye fatigue.',
+              value: comfort.comfortMode,
+              set: comfort.setComfortMode,
+            },
+            {
+              key: 'largeText' as const,
+              label: 'Larger text',
+              desc: 'Increases base font size across workspaces.',
+              value: comfort.largeText,
+              set: comfort.setLargeText,
+            },
+            {
+              key: 'softGrid' as const,
+              label: 'Subtle workspace grid',
+              desc: 'Ruled-paper background on module pages — turn off for a cleaner field.',
+              value: comfort.softGrid,
+              set: comfort.setSoftGrid,
+            },
+            {
+              key: 'reducedMotion' as const,
+              label: 'Reduce motion',
+              desc: 'Minimizes animations and transitions.',
+              value: comfort.reducedMotion,
+              set: comfort.setReducedMotion,
+            },
+          ].map((item) => (
+            <div key={item.key} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 p-4">
+              <div>
+                <p className="font-medium text-black">{item.label}</p>
+                <p className="text-sm text-gray-500">{item.desc}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => item.set(!item.value)}
+                className={`h-7 w-12 rounded-full transition-colors ${item.value ? 'bg-black' : 'bg-gray-300'}`}
+                aria-pressed={item.value}
+              >
+                <div
+                  className={`h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                    item.value ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={comfort.resetComfort}
+          className="mt-4 text-sm font-medium text-gray-600 underline hover:text-black"
+        >
+          Reset to defaults
+        </button>
+      </div>
+    </div>
+  );
+
   const renderNotificationsTab = () => (
     <div className="space-y-6">
       <div className="bg-white border border-gray-200 rounded-lg p-6">
@@ -1464,6 +1540,7 @@ export function Settings() {
           {activeTab === 'company' && renderCompanyTab()}
           {activeTab === 'security' && renderSecurityTab()}
           {activeTab === 'integrations' && renderIntegrationsTab()}
+          {activeTab === 'display' && renderDisplayTab()}
           {activeTab === 'notifications' && renderNotificationsTab()}
           {activeTab === 'audit' && renderAuditTab()}
           {activeTab === 'licensing' && canManageLicenses && renderLicensingTab()}

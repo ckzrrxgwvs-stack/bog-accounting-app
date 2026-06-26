@@ -98,6 +98,41 @@
   .bog-section-label {
     @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500;
   }
+
+  /* Comfort mode — reduced eye strain for 8h accounting sessions */
+  html[data-comfort='true'] {
+    --bog-paper: 42 28% 97%;
+    --bog-sheet: 42 20% 95%;
+    --bog-rule: 42 12% 86%;
+    --bog-line: 42 12% 86%;
+    --bog-accent: 210 55% 46%;
+    --bog-sidebar: 220 18% 14%;
+  }
+
+  html[data-text-scale='large'] {
+    font-size: 17px;
+  }
+
+  html[data-soft-grid='false'] .bog-workspace {
+    background-image: none;
+  }
+
+  html[data-reduced-motion='true'] *,
+  html[data-reduced-motion='true'] *::before,
+  html[data-reduced-motion='true'] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .bog-sidebar-nav {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(0 0% 100% / 0.15) transparent;
+  }
+
+  .bog-main-content {
+    line-height: 1.55;
+  }
 }
 
 img {
