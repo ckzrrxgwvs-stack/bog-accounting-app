@@ -160,8 +160,9 @@ export function MainLayout() {
       <CommandPalette />
       {user?.isTester && testerDaysLeft != null ? (
         <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-950">
-          <strong>Beta sandbox</strong> — {testerDaysLeft} day{testerDaysLeft === 1 ? '' : 's'} left
-          {testerExpiryLabel ? ` (through ${testerExpiryLabel})` : ''}. Explore everything and share feedback in{' '}
+          <strong>Family &amp; friends preview</strong> — BOG is still in development. {testerDaysLeft} day
+          {testerDaysLeft === 1 ? '' : 's'} left
+          {testerExpiryLabel ? ` (through ${testerExpiryLabel})` : ''}. Share input in{' '}
           <Link to="/product-intelligence" className="font-medium underline">
             Product intelligence
           </Link>

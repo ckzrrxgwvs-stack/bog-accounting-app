@@ -36,7 +36,7 @@ export interface User {
   companyName?: string;
   canViewPortfolio?: boolean;
   moduleGrants?: Array<{ module: string; canDelegate: boolean }>;
-  /** Beta tester sandbox — access expires after first-login trial window. */
+  /** Family & friends preview sandbox — access expires after first-login window. */
   isTester?: boolean;
   accessExpiresAt?: string | null;
   company?: Company;

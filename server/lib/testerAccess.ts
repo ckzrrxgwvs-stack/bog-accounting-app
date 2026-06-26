@@ -17,7 +17,7 @@ export async function getTesterAccessBlock(userId: string | undefined): Promise<
   if (!enrollment) return null;
 
   if (enrollment.accessExpiresAt <= new Date()) {
-    return 'Your beta test period has ended. Thank you for your feedback!';
+    return 'Your preview period has ended. Thank you for helping shape BOG!';
   }
   return null;
 }

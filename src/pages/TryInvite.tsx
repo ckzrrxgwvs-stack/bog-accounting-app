@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Copy, Check, KeyRound, MessageSquare } from 'lucide-react';
+import { Copy, Check, Heart, MessageSquare } from 'lucide-react';
 import { CubeLogoMark } from '@/components/Logo';
 import { FirstTimeSignInForm, type FirstTimeSignInValues } from '@/components/auth/FirstTimeSignInForm';
 import { api } from '@/services/api';
@@ -42,7 +42,7 @@ export function TryInvite() {
       if (cancelled) return;
       setLoading(false);
       if (!res.success || !res.data) {
-        setLoadError(res.error ?? 'This beta invite link is not valid.');
+        setLoadError(res.error ?? 'This preview link is not valid.');
         return;
       }
       setInvite(res.data as InviteInfo);
@@ -98,7 +98,7 @@ export function TryInvite() {
     });
     setBusy(false);
     if (!res.success || !res.data) {
-      setError(res.error ?? 'Could not create your beta account.');
+      setError(res.error ?? 'Could not create your preview account.');
       return;
     }
     finishClaim(res.data as Parameters<typeof finishClaim>[0]);
@@ -114,7 +114,7 @@ export function TryInvite() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bog-paper text-sm text-gray-500">
-        Loading beta invite…
+        Loading your preview invite…
       </div>
     );
   }
@@ -123,7 +123,7 @@ export function TryInvite() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-bog-paper px-4">
         <CubeLogoMark className="mb-6 h-14 w-14" />
-        <h1 className="text-xl font-semibold text-bog-ink">Invite not available</h1>
+        <h1 className="text-xl font-semibold text-bog-ink">Preview link not available</h1>
         <p className="mt-2 max-w-md text-center text-sm text-gray-500">{loadError}</p>
         <Link to="/login" className="mt-6 text-sm font-medium text-bog-ink underline">
           Go to sign in
@@ -136,10 +136,10 @@ export function TryInvite() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bog-paper px-4">
         <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
-          <h1 className="text-xl font-bold text-black">Your beta account is ready</h1>
+          <h1 className="text-xl font-bold text-black">Your preview account is ready</h1>
           <p className="mt-2 text-sm text-gray-500">
-            Save this password now — it will not be shown again. Your full-access trial runs for{' '}
-            <strong>{invite.trialDays} days</strong> from today
+            BOG is still being built — thank you for helping improve it. Save this password now; it will not be shown
+            again. Your private preview runs for <strong>{invite.trialDays} days</strong> from today
             {accessExpiresAt ? (
               <>
                 {' '}
@@ -166,7 +166,7 @@ export function TryInvite() {
             className="mt-3 flex items-center justify-center gap-2 text-sm text-gray-600 hover:text-black"
           >
             <MessageSquare size={16} />
-            Share feedback anytime under Product intelligence
+            Share what works best in Product intelligence
           </Link>
         </div>
       </div>
@@ -178,27 +178,32 @@ export function TryInvite() {
       <div className="w-full max-w-lg">
         <div className="mb-8 flex flex-col items-center text-center">
           <CubeLogoMark className="mb-4 h-12 w-12" />
-          <p className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
-            <KeyRound size={14} />
-            Beta tester invite
+          <p className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-900">
+            <Heart size={14} />
+            Family &amp; friends preview
           </p>
           {invite.label ? (
             <p className="mt-2 text-sm text-gray-500">{invite.label}</p>
           ) : null}
+          <p className="mt-3 max-w-sm text-xs leading-relaxed text-gray-500">
+            BOG is far from finished. You&apos;re getting early access so we can learn what to build next — not a public
+            launch.
+          </p>
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
           <FirstTimeSignInForm
-            title="Start your beta sandbox"
-            subtitle={`Full access to BOG features for ${invite.trialDays} days from your first sign-in. Use a personal email — you'll get your own private sandbox to explore and share feedback.`}
-            submitLabel={busy ? 'Creating sandbox…' : 'Start beta trial'}
+            title="Help shape BOG"
+            subtitle={`You'll get your own private sandbox with full access for ${invite.trialDays} days from first sign-in. Use a personal email, explore honestly, and tell us what would make BOG better for you.`}
+            submitLabel={busy ? 'Setting up preview…' : 'Start preview'}
             busy={busy}
             error={error}
             onSubmit={(form) => void handleSubmit(form)}
             footer={
               <p className="text-center text-xs text-gray-400">
-                After {invite.trialDays} days your sandbox login stops working. Use{' '}
-                <strong>Product intelligence</strong> in the app to tell us what worked best for you.
+                After {invite.trialDays} days preview access ends. Please use{' '}
+                <strong>Product intelligence</strong> in the app to share what worked, what confused you, and what you
+                wish BOG did.
               </p>
             }
           />

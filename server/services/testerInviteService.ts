@@ -79,7 +79,7 @@ export async function getTesterInvitePublic(tokenRaw: string) {
 
   const link = await prisma.testerInviteLink.findUnique({ where: { token } });
   if (!link || !link.isActive) {
-    throw new Error('This beta invite link is not valid');
+    throw new Error('This preview link is not valid');
   }
 
   const enrollmentCount = await prisma.testerEnrollment.count({
@@ -126,12 +126,12 @@ export async function claimTesterInvite(input: {
     where: { token: input.token.trim() },
   });
   if (!invite || !invite.isActive) {
-    throw new Error('This beta invite link is not valid');
+    throw new Error('This preview link is not valid');
   }
 
   const email = input.email.trim().toLowerCase();
   if (!email.includes('@')) throw new Error('Valid email is required');
-  if (isBootstrapUserEmail(email)) throw new Error('Use your personal email for beta testing');
+  if (isBootstrapUserEmail(email)) throw new Error('Use your personal email for your preview account');
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) throw new Error('Email already in use — sign in or use a different email');
@@ -146,7 +146,7 @@ export async function claimTesterInvite(input: {
     throw new Error('Password must be at least 8 characters (or choose generate password)');
   }
 
-  const companyName = (input.companyName?.trim() || 'Beta test sandbox').trim();
+  const companyName = (input.companyName?.trim() || 'Preview sandbox').trim();
   const passwordHash = await bcrypt.hash(plainPassword, 12);
   const firstLoginAt = new Date();
   const accessExpiresAt = new Date(firstLoginAt);

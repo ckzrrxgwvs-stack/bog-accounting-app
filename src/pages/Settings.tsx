@@ -182,7 +182,7 @@ export function Settings() {
   };
   const [testerLinks, setTesterLinks] = useState<TesterLinkRow[]>([]);
   const [testerLoading, setTesterLoading] = useState(false);
-  const [testerLabel, setTesterLabel] = useState('');
+  const [testerLabel, setTesterLabel] = useState('Family & close friends');
   const [testerTrialDays, setTesterTrialDays] = useState('15');
   const [fxStatus, setFxStatus] = useState<string | null>(null);
   const [bankAccounts, setBankAccounts] = useState<
@@ -492,12 +492,12 @@ export function Settings() {
       trialDays: Number.isFinite(days) ? days : undefined,
     });
     if (!res.success || !res.data) {
-      alert(res.error ?? 'Could not issue beta invite');
+      alert(res.error ?? 'Could not create preview link');
       return;
     }
     const d = res.data;
     alert(
-      `Beta invite link created (${d.trialDays} days per tester from first login):\n\n${d.inviteUrl}\n\nShare this URL or run scripts/create-beta-tester-launcher.sh with the link.`
+      `Family & friends preview link created (${d.trialDays} days per person from first login):\n\n${d.inviteUrl}\n\nShare only with people you trust. Then run:\n  BOG_APP_URL="${d.inviteUrl}" pnpm run create:family-share-icon`
     );
     setTesterLabel('');
     const list = await api.listTesterInvites();
@@ -510,12 +510,13 @@ export function Settings() {
   const renderLicensingTab = () => (
     <div className="space-y-6">
       {canIssueBetaInvites ? (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
-          <h3 className="font-semibold text-black mb-2">Beta tester invite links</h3>
+        <div className="bg-sky-50 border border-sky-200 rounded-lg p-6">
+          <h3 className="font-semibold text-black mb-2">Family &amp; close friends — preview links</h3>
           <p className="text-sm text-gray-600 mb-6">
-            Share a link so testers get their own private sandbox with <strong>full President access</strong> (all
-            modules, portfolio books, AI, ERP). Each person&apos;s trial starts on their first sign-in and ends after the
-            trial period — then login is blocked. Feedback lands in Product intelligence.
+            BOG is <strong>not ready for the public</strong>. Issue a private link only for family and close friends who
+            can explore a personal sandbox and tell you what to improve. Each person gets full access for a limited time
+            (from their first sign-in). Feedback lands in <strong>Product intelligence</strong>. Revoke the link anytime
+            to stop new signups.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
@@ -525,11 +526,11 @@ export function Settings() {
                 value={testerLabel}
                 onChange={(e) => setTesterLabel(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white"
-                placeholder="e.g. June design partners"
+                placeholder="e.g. Family & close friends"
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-500 mb-1">Trial days (from first login)</label>
+              <label className="block text-sm text-gray-500 mb-1">Preview days (from first login)</label>
               <input
                 type="number"
                 min={1}
@@ -545,22 +546,28 @@ export function Settings() {
             onClick={() => void handleIssueTesterInvite()}
             className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 text-sm font-medium"
           >
-            Create beta invite link
+            Create family preview link
           </button>
 
+          <p className="mt-3 text-xs text-gray-500">
+            After creating a link, put it on your Mac Desktop:{' '}
+            <code className="rounded bg-white px-1 py-0.5 text-[11px]">pnpm run create:family-share-icon</code> (with{' '}
+            <code className="rounded bg-white px-1 py-0.5 text-[11px]">BOG_APP_URL</code> set to the link).
+          </p>
+
           <div className="mt-6 overflow-x-auto">
-            <h4 className="font-medium text-black mb-3">Active beta links</h4>
+            <h4 className="font-medium text-black mb-3">Active preview links</h4>
             {testerLoading ? (
               <p className="text-sm text-gray-500">Loading…</p>
             ) : testerLinks.length === 0 ? (
-              <p className="text-sm text-gray-500">No beta links issued yet.</p>
+              <p className="text-sm text-gray-500">No family preview links yet.</p>
             ) : (
               <table className="w-full text-sm text-left">
                 <thead>
                   <tr className="text-gray-500 border-b">
                     <th className="py-2 pr-4">Link</th>
                     <th className="py-2 pr-4">Trial</th>
-                    <th className="py-2 pr-4">Testers</th>
+                    <th className="py-2 pr-4">Guests</th>
                     <th className="py-2">Actions</th>
                   </tr>
                 </thead>
@@ -568,7 +575,7 @@ export function Settings() {
                   {testerLinks.map((link) => (
                     <tr key={link.id} className="border-b border-gray-100 align-top">
                       <td className="py-3 pr-4">
-                        <p className="font-medium text-black">{link.label ?? 'Beta testers'}</p>
+                        <p className="font-medium text-black">{link.label ?? 'Family & close friends'}</p>
                         <a
                           href={link.inviteUrl}
                           target="_blank"
@@ -597,7 +604,7 @@ export function Settings() {
                             type="button"
                             className="text-xs text-red-600 hover:underline"
                             onClick={async () => {
-                              if (!confirm('Revoke this link? New signups will stop; existing testers keep until expiry.')) return;
+                              if (!confirm('Revoke this link? New signups will stop; existing guests keep access until their preview ends.')) return;
                               const res = await api.revokeTesterInvite(link.id);
                               if (!res.success) {
                                 alert(res.error ?? 'Revoke failed');

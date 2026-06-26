@@ -1,11 +1,10 @@
 /**
- * Issue a shareable beta-tester invite link (CLI).
+ * Issue a private family & friends preview link (CLI).
  *
  * Usage:
- *   pnpm run issue:tester-invite
- *   pnpm run issue:tester-invite -- --label "Design partners" --days 15
- *   pnpm run issue:tester-invite -- --via-api --desktop
- *   AGENT_ORG_CRON_SECRET=... pnpm run issue:tester-invite -- --via-api --desktop
+ *   pnpm run issue:family-preview
+ *   pnpm run issue:family-preview -- --days 15 --desktop
+ *   AGENT_ORG_CRON_SECRET=... pnpm run issue:family-preview -- --via-api --desktop
  */
 import { config } from 'dotenv';
 import { applyDatabaseUrlEnv } from '../lib/databaseUrl';
@@ -48,7 +47,7 @@ async function issueViaApi(input: { label?: string; trialDays?: number }) {
     method: 'POST',
     headers,
     body: JSON.stringify({
-      label: input.label ?? 'Beta testers',
+      label: input.label ?? 'Family & close friends — program input',
       trialDays: input.trialDays,
     }),
   });
@@ -62,23 +61,23 @@ async function main() {
   const { label, days, desktop, viaApi } = parseArgs(process.argv.slice(2));
 
   const out = viaApi
-    ? await issueViaApi({ label: label ?? 'Share with beta testers', trialDays: days })
+    ? await issueViaApi({ label: label ?? 'Family & close friends — program input', trialDays: days })
     : await (() => {
         applyDatabaseUrlEnv();
         return issueTesterInviteLink({
-          label: label ?? 'Beta testers',
+          label: label ?? 'Family & close friends — program input',
           trialDays: days,
           issuedById: null,
         });
       })();
 
-  console.log('\n✓ Beta tester invite created\n');
-  console.log(`  Trial: ${out.trialDays} days from each tester's first login`);
+  console.log('\n✓ Family & friends preview link created\n');
+  console.log(`  Preview: ${out.trialDays} days from each guest's first login`);
   console.log(`  Share URL:\n  ${out.inviteUrl}\n`);
 
   if (desktop) {
     const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-    const script = path.join(root, 'scripts/create-beta-tester-launcher.sh');
+    const script = path.join(root, 'scripts/create-family-preview-launcher.sh');
     execSync(`BOG_APP_URL="${out.inviteUrl}" bash "${script}"`, { stdio: 'inherit' });
   }
 
