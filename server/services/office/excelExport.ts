@@ -152,7 +152,7 @@ export async function parseJournalImportWorkbook(buffer: Buffer) {
 
   const rows: JournalImportRow[] = [];
   const errors: string[] = [];
-  let headerMap: Record<string, number> = {};
+  const headerMap: Record<string, number> = {};
 
   ws.eachRow((row, rowNumber) => {
     if (rowNumber === 1) {

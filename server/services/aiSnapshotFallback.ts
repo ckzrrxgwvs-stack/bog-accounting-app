@@ -100,7 +100,7 @@ export function buildQuotaFallbackResponse(userMessage: string, snapshot: string
   if (/cash\s*flow|cashflow|statement of cash/.test(q)) {
     return notice + formatCashFlowSummary(snapshot, userMessage);
   }
-  if (/income|p&l|p \& l|profit|loss|revenue|expense/.test(q)) {
+  if (/income|p&l|p\s*&\s*l|profit|loss|revenue|expense/.test(q)) {
     return notice + formatIncomeHighlight(snapshot, userMessage);
   }
   if (/balance\s*sheet|trial\s*balance|assets|liabilit/.test(q)) {
