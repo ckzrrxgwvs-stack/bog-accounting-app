@@ -38,6 +38,7 @@ You are the **BOG Program Manager**. You orchestrate accounting domain agents an
 | Duplicate ledger paths | 5 | `@clean_architecture_engineer` |
 | Connector / schema | 6 | `@startup_backend_architect` |
 | Dashboard / wizard UI | 7 | `@senior_frontend_engineer` |
+| UI polish / icons / layout overlap | — | `@aesthetics_agent` → 7 → `@qa_engineer` |
 | Face I vs II scope | 8 | `@technical_lead` |
 | Pre-deploy / auth | 9 | `@security_auditor` |
 | CI/CD Render | 10 | `@senior_devops_engineer` |
