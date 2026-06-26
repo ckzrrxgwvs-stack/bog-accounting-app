@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Creates "BOG Accounting.app" on the user's Desktop — opens the live web app in the default browser.
+# Creates a Desktop launcher for sharing the beta-test invite link with testers.
 set -euo pipefail
 
-APP_NAME="BOG Accounting"
-APP_URL="${BOG_APP_URL:-https://bog-accounting-v5.vercel.app/login}"
+APP_NAME="${BOG_SHARE_APP_NAME:-BOG Beta Test — SHARE}"
+APP_URL="${BOG_APP_URL:?Set BOG_APP_URL to the full beta invite URL (e.g. https://bog-accounting-v5.vercel.app/try/TOKEN)}"
 DESKTOP="${HOME}/Desktop"
 APP_PATH="${DESKTOP}/${APP_NAME}.app"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -11,10 +11,13 @@ SVG="${ROOT}/public/favicon.svg"
 BUILD_DIR="$(mktemp -d)"
 trap 'rm -rf "${BUILD_DIR}"' EXIT
 
-echo "→ Building ${APP_NAME}.app on Desktop"
+echo "→ Building shareable beta-test icon on Desktop"
+echo "  Name: ${APP_NAME}"
 echo "  URL: ${APP_URL}"
 
-# PNG from SVG (Quick Look on macOS)
+# Remove legacy launcher names so only the share icon remains obvious on Desktop.
+rm -rf "${DESKTOP}/BOG Beta Test.app" 2>/dev/null || true
+
 qlmanage -t -s 1024 -o "${BUILD_DIR}" "${SVG}" >/dev/null 2>&1
 PNG="${BUILD_DIR}/$(basename "${SVG}").png"
 if [[ ! -f "${PNG}" ]]; then
@@ -47,7 +50,7 @@ chmod +x "${APP_PATH}/Contents/MacOS/launcher"
 
 cp "${BUILD_DIR}/AppIcon.icns" "${APP_PATH}/Contents/Resources/AppIcon.icns"
 
-cat > "${APP_PATH}/Contents/Info.plist" <<'PLIST'
+cat > "${APP_PATH}/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -57,11 +60,11 @@ cat > "${APP_PATH}/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
   <key>CFBundleIdentifier</key>
-  <string>com.bog.accounting.launcher</string>
+  <string>com.bog.accounting.beta.share.launcher</string>
   <key>CFBundleName</key>
-  <string>BOG Accounting</string>
+  <string>${APP_NAME}</string>
   <key>CFBundleDisplayName</key>
-  <string>BOG Accounting</string>
+  <string>${APP_NAME}</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -77,5 +80,4 @@ PLIST
 touch "${APP_PATH}"
 
 echo "✓ Created: ${APP_PATH}"
-echo "  Double-click it on your Desktop to open BOG Accounting."
-echo "  Optional: drag it to the Dock for one-click access."
+echo "  This is the icon to SHARE with beta testers (15-day trial from first login)."

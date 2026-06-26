@@ -67,6 +67,9 @@ model Company {
   /** When set, Human completed first-run owner setup (custom President login). */
   ownerSetupCompletedAt DateTime?
 
+  /** Isolated sandbox created via a beta tester invite link. */
+  isTesterSandbox Boolean @default(false)
+
   // Timestamps
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -360,6 +363,37 @@ enum CustomerRegistrationStatus {
   REVOKED
 }
 
+// Shareable beta-tester links — each signup gets a private sandbox; access expires trialDays after first login.
+model TesterInviteLink {
+  id          String   @id @default(cuid())
+  /** URL-safe token (e.g. /try/{token}) */
+  token       String   @unique
+  label       String?
+  trialDays   Int      @default(15)
+  isActive    Boolean  @default(true)
+  issuedAt    DateTime @default(now())
+  revokedAt   DateTime?
+  issuedById  String?
+  enrollments TesterEnrollment[]
+
+  @@index([isActive])
+  @@index([issuedAt])
+}
+
+model TesterEnrollment {
+  id              String   @id @default(cuid())
+  inviteLinkId    String
+  userId          String   @unique
+  firstLoginAt    DateTime @default(now())
+  accessExpiresAt DateTime
+
+  inviteLink TesterInviteLink @relation(fields: [inviteLinkId], references: [id], onDelete: Cascade)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([inviteLinkId])
+  @@index([accessExpiresAt])
+}
+
 // Closed accounting periods (no posting to journal date in a closed month)
 model ClosedPeriod {
   id         String   @id @default(cuid())
@@ -494,6 +528,7 @@ model User {
   bookAccess    UserBookAccess[]
   moduleGrants  UserModuleGrant[] @relation("UserModuleGrants")
   grantedModules UserModuleGrant[] @relation("GrantedByUser")
+  testerEnrollment TesterEnrollment?
 }
 
 enum UserRoleType {

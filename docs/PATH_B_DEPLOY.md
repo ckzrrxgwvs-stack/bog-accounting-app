@@ -81,7 +81,7 @@ Use **your** Render URL + `/api` at the end.
 
 ## Step 4 — Desktop launcher (already done)
 
-Your **BOG Accounting.app** points at `https://bog-accounting-v5.vercel.app` — no change needed after Step 3.
+Your **BOG Accounting.app** (Desktop) opens `https://bog-accounting-v5.vercel.app/login` in your browser. **BOG-Pi · Books On The Go** (Chrome app shortcut) uses the same URL.
 
 ---
 

@@ -133,6 +133,62 @@
   .bog-main-content {
     line-height: 1.55;
   }
+
+  @keyframes bog-neon-aura-breathe {
+    0%,
+    100% {
+      opacity: 0.42;
+      transform: scale(0.94);
+    }
+    50% {
+      opacity: 0.92;
+      transform: scale(1.06);
+    }
+  }
+
+  @keyframes bog-neon-aura-flicker {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    25% {
+      opacity: 0.95;
+    }
+    60% {
+      opacity: 0.4;
+    }
+    80% {
+      opacity: 0.78;
+    }
+  }
+
+  @keyframes bog-neon-spark-drift {
+    0%,
+    100% {
+      opacity: 0.35;
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      opacity: 0.85;
+      transform: translate(2px, -2px) scale(1.15);
+    }
+  }
+
+  .bog-neon-aura-outer {
+    animation: bog-neon-aura-breathe 4.2s ease-in-out infinite;
+  }
+
+  .bog-neon-aura-inner {
+    animation: bog-neon-aura-flicker 3.1s ease-in-out infinite;
+  }
+
+  .bog-neon-spark {
+    animation: bog-neon-spark-drift 2.6s ease-in-out infinite;
+  }
+
+  .bog-neon-spark-delay {
+    animation: bog-neon-spark-drift 3.4s ease-in-out infinite reverse;
+  }
 }
 
 img {

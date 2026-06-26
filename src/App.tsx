@@ -33,6 +33,7 @@ import { FinancialConnections } from './pages/FinancialConnections';
 import { MicrosoftOfficeHub } from './pages/MicrosoftOfficeHub';
 import { Login } from './pages/Login';
 import { OwnerSetup } from './pages/OwnerSetup';
+import { TryInvite } from './pages/TryInvite';
 import { useAuthStore } from './stores/authStore';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -58,6 +59,7 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/setup-owner" element={<OwnerSetup />} />
+        <Route path="/try/:token" element={<TryInvite />} />
 
         {/* Protected routes */}
         <Route

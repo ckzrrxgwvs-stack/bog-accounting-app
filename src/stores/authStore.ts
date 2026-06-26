@@ -65,6 +65,9 @@ export const useAuthStore = create<AuthState>()(
               moduleGrants: Array.isArray(u.moduleGrants)
                 ? (u.moduleGrants as Array<{ module: string; canDelegate: boolean }>)
                 : undefined,
+              isTester: Boolean(u.isTester),
+              accessExpiresAt:
+                typeof u.accessExpiresAt === 'string' ? u.accessExpiresAt : null,
               createdAt: new Date(),
               updatedAt: new Date(),
             };

@@ -129,6 +129,7 @@ export function Settings() {
   const userRole = useAuthStore((s) => s.user?.role);
   const canManageLicenses =
     userRole === 'PRESIDENT' || userRole === 'CFO' || userRole === 'CONTROLLER';
+  const canIssueBetaInvites = userRole === 'PRESIDENT';
 
   const visibleTabs = useMemo(() => {
     if (!canManageLicenses) return tabs;
@@ -161,6 +162,28 @@ export function Settings() {
   const [issueContactEmail, setIssueContactEmail] = useState('');
   const [issueNotes, setIssueNotes] = useState('');
   const [issueExpires, setIssueExpires] = useState('');
+  type TesterLinkRow = {
+    id: string;
+    token: string;
+    label: string | null;
+    trialDays: number;
+    isActive: boolean;
+    inviteUrl: string;
+    issuedAt: string;
+    revokedAt: string | null;
+    enrollmentCount: number;
+    recentEnrollments: Array<{
+      email: string;
+      name: string;
+      firstLoginAt: string;
+      accessExpiresAt: string;
+      expired: boolean;
+    }>;
+  };
+  const [testerLinks, setTesterLinks] = useState<TesterLinkRow[]>([]);
+  const [testerLoading, setTesterLoading] = useState(false);
+  const [testerLabel, setTesterLabel] = useState('');
+  const [testerTrialDays, setTesterTrialDays] = useState('15');
   const [fxStatus, setFxStatus] = useState<string | null>(null);
   const [bankAccounts, setBankAccounts] = useState<
     { id: string; name: string; accountMask: string | null; transactionCount: number }[]
@@ -202,6 +225,26 @@ export function Settings() {
       cancelled = true;
     };
   }, [activeTab, canManageLicenses]);
+
+  useEffect(() => {
+    if (activeTab !== 'licensing' || !canIssueBetaInvites) return;
+    let cancelled = false;
+    (async () => {
+      setTesterLoading(true);
+      const res = await api.listTesterInvites();
+      if (cancelled) return;
+      setTesterLoading(false);
+      if (!res.success || !res.data) {
+        setTesterLinks([]);
+        return;
+      }
+      const payload = res.data as { links?: TesterLinkRow[] };
+      setTesterLinks(payload.links ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, canIssueBetaInvites]);
 
   useEffect(() => {
     let cancelled = false;
@@ -442,8 +485,144 @@ export function Settings() {
     }
   };
 
+  const handleIssueTesterInvite = async () => {
+    const days = Number(testerTrialDays);
+    const res = await api.issueTesterInvite({
+      label: testerLabel.trim() || undefined,
+      trialDays: Number.isFinite(days) ? days : undefined,
+    });
+    if (!res.success || !res.data) {
+      alert(res.error ?? 'Could not issue beta invite');
+      return;
+    }
+    const d = res.data;
+    alert(
+      `Beta invite link created (${d.trialDays} days per tester from first login):\n\n${d.inviteUrl}\n\nShare this URL or run scripts/create-beta-tester-launcher.sh with the link.`
+    );
+    setTesterLabel('');
+    const list = await api.listTesterInvites();
+    if (list.success && list.data) {
+      const payload = list.data as { links?: TesterLinkRow[] };
+      setTesterLinks(payload.links ?? []);
+    }
+  };
+
   const renderLicensingTab = () => (
     <div className="space-y-6">
+      {canIssueBetaInvites ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+          <h3 className="font-semibold text-black mb-2">Beta tester invite links</h3>
+          <p className="text-sm text-gray-600 mb-6">
+            Share a link so testers get their own private sandbox with <strong>full President access</strong> (all
+            modules, portfolio books, AI, ERP). Each person&apos;s trial starts on their first sign-in and ends after the
+            trial period — then login is blocked. Feedback lands in Product intelligence.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm text-gray-500 mb-1">Label (optional)</label>
+              <input
+                type="text"
+                value={testerLabel}
+                onChange={(e) => setTesterLabel(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white"
+                placeholder="e.g. June design partners"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-500 mb-1">Trial days (from first login)</label>
+              <input
+                type="number"
+                min={1}
+                max={365}
+                value={testerTrialDays}
+                onChange={(e) => setTesterTrialDays(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white"
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleIssueTesterInvite()}
+            className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 text-sm font-medium"
+          >
+            Create beta invite link
+          </button>
+
+          <div className="mt-6 overflow-x-auto">
+            <h4 className="font-medium text-black mb-3">Active beta links</h4>
+            {testerLoading ? (
+              <p className="text-sm text-gray-500">Loading…</p>
+            ) : testerLinks.length === 0 ? (
+              <p className="text-sm text-gray-500">No beta links issued yet.</p>
+            ) : (
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="text-gray-500 border-b">
+                    <th className="py-2 pr-4">Link</th>
+                    <th className="py-2 pr-4">Trial</th>
+                    <th className="py-2 pr-4">Testers</th>
+                    <th className="py-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {testerLinks.map((link) => (
+                    <tr key={link.id} className="border-b border-gray-100 align-top">
+                      <td className="py-3 pr-4">
+                        <p className="font-medium text-black">{link.label ?? 'Beta testers'}</p>
+                        <a
+                          href={link.inviteUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-blue-600 break-all hover:underline"
+                        >
+                          {link.inviteUrl}
+                        </a>
+                        {!link.isActive ? (
+                          <p className="text-xs text-red-600 mt-1">Revoked</p>
+                        ) : null}
+                      </td>
+                      <td className="py-3 pr-4 whitespace-nowrap">{link.trialDays} days</td>
+                      <td className="py-3 pr-4">
+                        <p>{link.enrollmentCount} signed up</p>
+                        {link.recentEnrollments.slice(0, 3).map((e) => (
+                          <p key={e.email} className="text-xs text-gray-500">
+                            {e.email}
+                            {e.expired ? ' (expired)' : ''}
+                          </p>
+                        ))}
+                      </td>
+                      <td className="py-3">
+                        {link.isActive ? (
+                          <button
+                            type="button"
+                            className="text-xs text-red-600 hover:underline"
+                            onClick={async () => {
+                              if (!confirm('Revoke this link? New signups will stop; existing testers keep until expiry.')) return;
+                              const res = await api.revokeTesterInvite(link.id);
+                              if (!res.success) {
+                                alert(res.error ?? 'Revoke failed');
+                                return;
+                              }
+                              const list = await api.listTesterInvites();
+                              if (list.success && list.data) {
+                                const payload = list.data as { links?: TesterLinkRow[] };
+                                setTesterLinks(payload.links ?? []);
+                              }
+                            }}
+                          >
+                            Revoke link
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h3 className="font-semibold text-black mb-2">Signed-customer registration codes</h3>
         <p className="text-sm text-gray-500 mb-6">

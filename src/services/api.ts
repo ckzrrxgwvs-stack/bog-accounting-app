@@ -967,6 +967,83 @@ class ApiClient {
     return this.request(`/registrations/${id}/revoke`, { method: 'POST' });
   }
 
+  async getTesterInvite(token: string) {
+    return this.request<{
+      label: string | null;
+      trialDays: number;
+      isActive: boolean;
+      enrollmentCount: number;
+      inviteUrl: string;
+    }>(`/tester-invites/${encodeURIComponent(token)}`, { skipAuth: true });
+  }
+
+  async claimTesterInvite(
+    token: string,
+    body: {
+      email: string;
+      firstName: string;
+      lastName: string;
+      companyName?: string;
+      password?: string;
+      generatePassword?: boolean;
+    }
+  ) {
+    return this.request<{
+      token: string;
+      generatedPassword?: string;
+      accessExpiresAt: string;
+      trialDays: number;
+      user: Record<string, unknown>;
+    }>(`/tester-invites/${encodeURIComponent(token)}/claim`, {
+      method: 'POST',
+      body,
+      skipAuth: true,
+    });
+  }
+
+  async listTesterInvites() {
+    return this.request<{
+      links: Array<{
+        id: string;
+        token: string;
+        label: string | null;
+        trialDays: number;
+        isActive: boolean;
+        inviteUrl: string;
+        issuedAt: string;
+        revokedAt: string | null;
+        enrollmentCount: number;
+        recentEnrollments: Array<{
+          email: string;
+          name: string;
+          firstLoginAt: string;
+          accessExpiresAt: string;
+          expired: boolean;
+        }>;
+      }>;
+    }>('/tester-invites');
+  }
+
+  async issueTesterInvite(body: { label?: string; trialDays?: number }) {
+    return this.request<{ id: string; token: string; inviteUrl: string; trialDays: number }>(
+      '/tester-invites/issue',
+      { method: 'POST', body }
+    );
+  }
+
+  async revokeTesterInvite(id: string) {
+    return this.request(`/tester-invites/${id}/revoke`, { method: 'POST' });
+  }
+
+  async getMyTesterAccess() {
+    return this.request<{
+      isTester: boolean;
+      accessExpiresAt: string | null;
+      daysRemaining: number | null;
+      expired: boolean;
+    }>('/tester-invites/me/access');
+  }
+
   /** Listed stored FX rows (requires JWT). */
   async getExchangeRates(params?: { limit?: number }) {
     const q = params?.limit != null ? `?limit=${params.limit}` : '';

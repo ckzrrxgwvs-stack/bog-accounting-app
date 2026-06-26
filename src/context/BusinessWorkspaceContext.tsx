@@ -1,4 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
@@ -27,6 +35,13 @@ type Ctx = {
 
 const STORAGE_KEY = 'bog-active-workspace';
 const BusinessWorkspaceContext = createContext<Ctx | null>(null);
+
+const KIND_LABEL: Record<Workspace['kind'], string> = {
+  commerce: 'Operating',
+  investment: 'Investment',
+  project: 'Project',
+  portfolio: 'Rollup',
+};
 
 export function BusinessWorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -73,6 +88,44 @@ export function useBusinessWorkspace() {
   return ctx;
 }
 
+function BookPill({
+  active,
+  label,
+  kind,
+  icon,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  kind: Workspace['kind'];
+  icon: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group flex min-w-[10.5rem] max-w-[15.5rem] flex-col items-center gap-1.5 rounded-xl border px-4 py-3 text-center transition-all ${
+        active
+          ? 'border-[hsl(var(--bog-accent))] bg-[hsl(var(--bog-accent-muted))] shadow-sm ring-1 ring-[hsl(var(--bog-accent))]/25'
+          : 'border-bog-rule bg-white text-bog-ink hover:border-[hsl(var(--bog-line-key))] hover:bg-bog-sheet hover:shadow-sm'
+      }`}
+    >
+      <span
+        className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+          active ? 'bg-white text-[hsl(var(--bog-accent))]' : 'bg-bog-sheet text-zinc-500 group-hover:text-zinc-700'
+        }`}
+      >
+        {icon}
+      </span>
+      <span className={`w-full truncate text-sm font-semibold leading-tight ${active ? 'text-bog-ink' : 'text-zinc-800'}`}>
+        {label}
+      </span>
+      <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">{KIND_LABEL[kind]}</span>
+    </button>
+  );
+}
+
 export function BusinessWorkspaceSwitcher() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -83,18 +136,21 @@ export function BusinessWorkspaceSwitcher() {
   const [newProjectName, setNewProjectName] = useState('');
   const [addBusy, setAddBusy] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const isPresident = user?.role === 'PRESIDENT';
   const isCfo = user?.role === 'CFO';
   const active =
     activeId === PORTFOLIO_WORKSPACE_ID
-      ? { label: `${portfolioCompanyName} — Portfolio`, kind: 'portfolio' as const }
+      ? { label: 'Portfolio overview', kind: 'portfolio' as const }
       : workspaces.find((w) => w.id === activeId) ?? workspaces[0];
-  const displayName = active?.label ?? portfolioCompanyName;
+  const activeBookLabel = active?.label ?? 'Book';
+  const activeKind = active?.kind ?? 'commerce';
 
   const onSelect = (w: Workspace | { id: string; ledgerKey?: Workspace['ledgerKey'] }) => {
     setActiveId(w.id);
     setOpen(false);
+    setAdding(false);
     if (w.id === PORTFOLIO_WORKSPACE_ID) {
       navigate('/');
       return;
@@ -124,92 +180,138 @@ export function BusinessWorkspaceSwitcher() {
     if (book?.slug) onSelect({ id: book.slug });
   };
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        setAdding(false);
+      }
+    };
+    const onPointer = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setAdding(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onPointer);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onPointer);
+    };
+  }, [open]);
+
   return (
-    <div className="relative border-b border-white/10 px-4 py-3">
+    <div ref={rootRef} className="relative flex w-full max-w-3xl flex-col items-center">
       <button
         type="button"
+        aria-expanded={open}
+        aria-haspopup="true"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 rounded-lg bg-white/[0.06] px-3 py-2 text-left text-sm text-white hover:bg-white/10"
+        className={`flex flex-col items-center rounded-xl px-4 py-1.5 text-center transition-colors ${
+          open ? 'bg-bog-sheet' : 'hover:bg-bog-sheet/80'
+        }`}
       >
-        {activeId === PORTFOLIO_WORKSPACE_ID ? (
-          <LayoutGrid size={16} className="shrink-0 text-[hsl(var(--bog-accent))]" />
-        ) : (
-          <Building2 size={16} className="shrink-0 text-[hsl(var(--bog-accent))]" />
-        )}
-        <span className="min-w-0 flex-1 truncate font-medium">{displayName}</span>
-        <ChevronDown size={16} className={`shrink-0 opacity-70 transition ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="absolute left-4 right-4 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-bog-sidebar-elevated py-1 shadow-xl">
-          {canViewPortfolio && (
-            <button
-              type="button"
-              onClick={() => onSelect({ id: PORTFOLIO_WORKSPACE_ID })}
-              className={`flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-white/10 ${
-                activeId === PORTFOLIO_WORKSPACE_ID ? 'bg-white/[0.08] text-white' : 'text-zinc-300'
-              }`}
-            >
-              <span className="truncate font-medium">{portfolioCompanyName} — Portfolio</span>
-              <span className="text-[10px] uppercase tracking-wide text-zinc-500">All authorized books</span>
-            </button>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+          {portfolioCompanyName}
+        </span>
+        <span className="mt-0.5 flex max-w-[min(100vw-6rem,20rem)] items-center gap-1.5">
+          {activeId === PORTFOLIO_WORKSPACE_ID ? (
+            <LayoutGrid size={15} className="shrink-0 text-[hsl(var(--bog-accent))]" />
+          ) : (
+            <Building2 size={15} className="shrink-0 text-[hsl(var(--bog-accent))]" />
           )}
-          {workspaces.map((w) => (
-            <button
-              key={w.id}
-              type="button"
-              onClick={() => onSelect(w)}
-              className={`flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-white/10 ${
-                w.id === activeId ? 'bg-white/[0.08] text-white' : 'text-zinc-300'
-              }`}
-            >
-              <span className="truncate font-medium">{w.label}</span>
-              <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-                {w.kind === 'investment' ? 'Investment book' : w.kind === 'project' ? 'Project book' : 'Operating business'}
-              </span>
-            </button>
-          ))}
-          {(isPresident || isCfo) && (
-            <div className="border-t border-white/10 px-3 py-2">
-              {adding ? (
-                <div className="space-y-2">
-                  <input
-                    className="w-full rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-sm text-white placeholder:text-zinc-500"
-                    placeholder="New project name"
-                    value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
-                  />
-                  {addError && <p className="text-xs text-red-300">{addError}</p>}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={addBusy}
-                      onClick={() => void submitNewProject()}
-                      className="flex-1 rounded-md bg-white/10 py-1.5 text-xs font-medium text-white hover:bg-white/20"
-                    >
-                      {addBusy ? 'Creating…' : 'Create book'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAdding(false);
-                        setAddError(null);
-                      }}
-                      className="rounded-md px-2 py-1.5 text-xs text-zinc-400 hover:text-white"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+          <span className="truncate text-sm font-semibold text-bog-ink">{activeBookLabel}</span>
+          <span className="hidden text-[10px] font-medium uppercase tracking-wide text-zinc-400 sm:inline">
+            · {KIND_LABEL[activeKind]}
+          </span>
+          <ChevronDown
+            size={15}
+            className={`shrink-0 text-zinc-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          />
+        </span>
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute left-1/2 top-full z-50 mt-2 w-[min(calc(100vw-1.5rem),52rem)] -translate-x-1/2 rounded-2xl border border-bog-rule bg-white p-5 shadow-lg shadow-bog-ink/10 ring-1 ring-black/[0.04]"
+        >
+          <p className="mb-4 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-400">
+            Switch portfolio book
+          </p>
+
+          <div className="flex flex-wrap items-stretch justify-center gap-3">
+            {canViewPortfolio && (
+              <BookPill
+                active={activeId === PORTFOLIO_WORKSPACE_ID}
+                label="Portfolio overview"
+                kind="portfolio"
+                icon={<LayoutGrid size={18} />}
+                onClick={() => onSelect({ id: PORTFOLIO_WORKSPACE_ID })}
+              />
+            )}
+            {workspaces.map((w) => (
+              <BookPill
+                key={w.id}
+                active={w.id === activeId}
+                label={w.label}
+                kind={w.kind}
+                icon={<Building2 size={18} />}
+                onClick={() => onSelect(w)}
+              />
+            ))}
+            {(isPresident || isCfo) && !adding && (
+              <button
+                type="button"
+                onClick={() => setAdding(true)}
+                className="flex min-w-[10.5rem] max-w-[15.5rem] flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-zinc-300 bg-bog-sheet/50 px-4 py-3 text-center text-zinc-500 transition-colors hover:border-[hsl(var(--bog-accent))] hover:bg-[hsl(var(--bog-accent-muted))]/40 hover:text-[hsl(var(--bog-accent))]"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white">
+                  <Plus size={18} />
+                </span>
+                <span className="text-sm font-semibold">Add project</span>
+              </button>
+            )}
+          </div>
+
+          {(isPresident || isCfo) && adding && (
+            <div className="mt-4 rounded-xl border border-bog-rule bg-bog-sheet/60 p-3">
+              <p className="mb-2 text-center text-xs font-medium text-zinc-600">New project book</p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  className="min-w-0 flex-1 rounded-lg border border-bog-rule bg-white px-3 py-2 text-sm text-bog-ink placeholder:text-zinc-400 focus:border-[hsl(var(--bog-accent))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--bog-accent))]/20"
+                  placeholder="Project name"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void submitNewProject();
+                  }}
+                  autoFocus
+                />
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    disabled={addBusy}
+                    onClick={() => void submitNewProject()}
+                    className="rounded-lg bg-bog-ink px-4 py-2 text-xs font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+                  >
+                    {addBusy ? 'Creating…' : 'Create'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdding(false);
+                      setAddError(null);
+                    }}
+                    className="rounded-lg px-3 py-2 text-xs font-medium text-zinc-500 hover:bg-white hover:text-bog-ink"
+                  >
+                    Cancel
+                  </button>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setAdding(true)}
-                  className="flex w-full items-center gap-2 text-left text-sm text-sky-300 hover:text-sky-200"
-                >
-                  <Plus size={14} />
-                  Add project book
-                </button>
-              )}
+              </div>
+              {addError ? <p className="mt-2 text-center text-xs text-red-600">{addError}</p> : null}
             </div>
           )}
         </div>

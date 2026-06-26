@@ -1,18 +1,25 @@
 // BOG-Pi — Books On The Go · π precision (Rubik-inspired cube mark, original — not Rubik’s Cube™)
 
 import React from 'react';
+import { useNeonAuraPalette } from '@/hooks/useNeonAuraPalette';
+
+const SIDEBAR_LOGO_PX = 50;
 
 /** Isometric 3×3-style cube: black/white faces + one accent “tile” (π / precision) */
 export function CubeLogoMark({
   size = 40,
   className = '',
   accent = true,
+  accentColor,
 }: {
   size?: number;
   className?: string;
   /** Highlight one facet with accent blue */
   accent?: boolean;
+  accentColor?: string;
 }) {
+  const tileFill = accentColor ?? 'hsl(217 91% 53%)';
+
   return (
     <svg
       width={size}
@@ -24,7 +31,6 @@ export function CubeLogoMark({
       aria-hidden
     >
       <title>BOG-Pi logo mark</title>
-      {/* Top face */}
       <path
         d="M40 14 62 27 40 40 18 27Z"
         fill="#fafafa"
@@ -32,7 +38,6 @@ export function CubeLogoMark({
         strokeWidth="1.25"
         strokeLinejoin="round"
       />
-      {/* Left face */}
       <path
         d="M18 27 40 40 40 66 18 53Z"
         fill="#e4e4e7"
@@ -40,7 +45,6 @@ export function CubeLogoMark({
         strokeWidth="1.25"
         strokeLinejoin="round"
       />
-      {/* Right face */}
       <path
         d="M62 27 40 40 40 66 62 53Z"
         fill="#f4f4f5"
@@ -48,25 +52,87 @@ export function CubeLogoMark({
         strokeWidth="1.25"
         strokeLinejoin="round"
       />
-      {/* Top-face crosshair (Rubik-like segmentation, ruled lines) */}
       <path d="M40 14 L40 40" stroke="#0c0c0d" strokeWidth="0.85" strokeOpacity="0.4" strokeLinecap="round" />
       <path d="M18 27 L62 27" stroke="#0c0c0d" strokeWidth="0.85" strokeOpacity="0.4" strokeLinecap="round" />
-      {/* Accent tile on top (precision highlight) */}
       {accent && (
         <path
           d="M40 27 51 33 40 39 29 33Z"
-          fill="hsl(217 91% 53%)"
-          fillOpacity={0.92}
+          fill={tileFill}
+          fillOpacity={0.95}
           stroke="#0c0c0d"
           strokeWidth="0.6"
+          className="transition-[fill] duration-[2s] ease-in-out"
         />
       )}
-      {/* Left / right face facet lines */}
       <path d="M22 38 L38 47" stroke="#0c0c0d" strokeWidth="0.65" strokeOpacity="0.28" />
       <path d="M58 38 L42 47" stroke="#0c0c0d" strokeWidth="0.65" strokeOpacity="0.28" />
       <path d="M29 45 L29 58" stroke="#0c0c0d" strokeWidth="0.65" strokeOpacity="0.28" />
       <path d="M51 45 L51 58" stroke="#0c0c0d" strokeWidth="0.65" strokeOpacity="0.28" />
     </svg>
+  );
+}
+
+function NeonAuraFrame({
+  primary,
+  secondary,
+  size,
+  children,
+}: {
+  primary: string;
+  secondary: string;
+  size: number;
+  children: React.ReactNode;
+}) {
+  const pad = Math.round(size * 0.35);
+
+  return (
+    <div
+      className="relative flex shrink-0 items-center justify-center"
+      style={{ width: size + pad * 2, height: size + pad * 2 }}
+    >
+      <span
+        aria-hidden
+        className="bog-neon-aura-outer pointer-events-none absolute rounded-2xl transition-[box-shadow,opacity,transform] duration-[2s] ease-in-out"
+        style={{
+          inset: pad * 0.35,
+          background: `radial-gradient(circle at 50% 45%, ${primary}55 0%, ${secondary}28 38%, transparent 68%)`,
+          boxShadow: `0 0 22px ${primary}66, 0 0 44px ${secondary}44, 0 0 68px ${primary}22`,
+        }}
+      />
+      <span
+        aria-hidden
+        className="bog-neon-aura-inner pointer-events-none absolute rounded-xl transition-[box-shadow,opacity] duration-[2s] ease-in-out"
+        style={{
+          inset: pad * 0.65,
+          boxShadow: `0 0 12px ${primary}88, 0 0 24px ${secondary}55`,
+        }}
+      />
+      <span
+        aria-hidden
+        className="bog-neon-spark pointer-events-none absolute rounded-full transition-[background,opacity] duration-[2s] ease-in-out"
+        style={{
+          width: size * 0.22,
+          height: size * 0.22,
+          top: '12%',
+          right: '18%',
+          background: `radial-gradient(circle, ${primary} 0%, transparent 70%)`,
+        }}
+      />
+      <span
+        aria-hidden
+        className="bog-neon-spark-delay pointer-events-none absolute rounded-full transition-[background,opacity] duration-[2s] ease-in-out"
+        style={{
+          width: size * 0.16,
+          height: size * 0.16,
+          bottom: '16%',
+          left: '14%',
+          background: `radial-gradient(circle, ${secondary} 0%, transparent 70%)`,
+        }}
+      />
+      <div className="relative z-10 overflow-hidden rounded-xl ring-1 ring-white/20 transition-shadow duration-[2s] ease-in-out">
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -119,6 +185,8 @@ interface LogoWithStatusProps {
 }
 
 export function LogoWithStatus({ status = 'active' }: LogoWithStatusProps) {
+  const aura = useNeonAuraPalette();
+
   const statusConfig = {
     active: { color: 'bg-emerald-500', label: 'Connected', textColor: 'text-emerald-400' },
     demo: { color: 'bg-amber-500', label: 'Demo mode', textColor: 'text-amber-400' },
@@ -128,20 +196,25 @@ export function LogoWithStatus({ status = 'active' }: LogoWithStatusProps) {
   const config = statusConfig[status];
 
   return (
-    <div className="flex min-w-0 items-center gap-2.5">
+    <div className="flex min-w-0 items-center gap-3">
       <div className="relative shrink-0">
-        <div className="overflow-hidden rounded-xl ring-1 ring-white/15">
-          <CubeLogoMark size={40} />
-        </div>
+        <NeonAuraFrame primary={aura.primary} secondary={aura.secondary} size={SIDEBAR_LOGO_PX}>
+          <CubeLogoMark size={SIDEBAR_LOGO_PX} accentColor={aura.primary} />
+        </NeonAuraFrame>
         <span
-          className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[hsl(var(--bog-sidebar))] ${config.color}`}
+          className={`absolute bottom-0 right-0 z-20 h-3 w-3 rounded-full border-2 border-[hsl(var(--bog-sidebar))] ${config.color}`}
           aria-hidden
         />
       </div>
       <div className="min-w-0">
         <div className="flex items-baseline gap-1">
           <span className="truncate text-sm font-bold tracking-tight text-white">BOG-Pi</span>
-          <span className="font-figures text-xs font-semibold text-[hsl(var(--bog-accent))]">π</span>
+          <span
+            className="font-figures text-xs font-semibold transition-colors duration-[2s] ease-in-out"
+            style={{ color: aura.primary }}
+          >
+            π
+          </span>
         </div>
         <span className={`truncate text-[11px] ${config.textColor}`}>{config.label}</span>
       </div>

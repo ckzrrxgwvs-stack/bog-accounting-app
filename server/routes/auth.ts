@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
 import { requireDatabase } from '../lib/requireDatabase';
 import { issueAuthToken } from '../lib/issueAuthToken';
+import { getTesterAccessBlock } from '../lib/testerAccess';
 
 const router = Router();
 
@@ -41,6 +42,12 @@ router.post('/login', async (req, res) => {
       return;
     }
 
+    const testerBlock = await getTesterAccessBlock(user.id);
+    if (testerBlock) {
+      res.status(403).json({ error: testerBlock, code: 'TESTER_EXPIRED' });
+      return;
+    }
+
     const token = issueAuthToken({
       id: user.id,
       companyId: user.companyId,
@@ -50,6 +57,11 @@ router.post('/login', async (req, res) => {
     await prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
+    });
+
+    const testerInfo = await prisma.testerEnrollment.findUnique({
+      where: { userId: user.id },
+      select: { accessExpiresAt: true },
     });
 
     res.json({
@@ -68,6 +80,8 @@ router.post('/login', async (req, res) => {
           canDelegate: g.canDelegate,
         })),
         mfaEnabled: user.mfaEnabled,
+        isTester: Boolean(testerInfo),
+        accessExpiresAt: testerInfo?.accessExpiresAt.toISOString() ?? null,
       },
     });
   } catch (e) {

@@ -1,6 +1,7 @@
 import type { Request, RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
 import { UserRoleType } from '@prisma/client';
+import { getTesterAccessBlock } from '../lib/testerAccess';
 
 export type JwtPayload = { sub?: string; companyId?: string; role?: string };
 
@@ -8,7 +9,7 @@ export type JwtPayload = { sub?: string; companyId?: string; role?: string };
  * Requires Authorization Bearer JWT with role in the allowed list.
  */
 export function requireAuthRoles(...allowed: UserRoleType[]): RequestHandler {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const auth = req.headers.authorization;
     if (!auth?.startsWith('Bearer ')) {
       res.status(401).json({ error: 'Authorization required' });
@@ -21,6 +22,11 @@ export function requireAuthRoles(...allowed: UserRoleType[]): RequestHandler {
       const role = payload.role as UserRoleType | undefined;
       if (!role || !allowed.includes(role)) {
         res.status(403).json({ error: 'Insufficient permissions' });
+        return;
+      }
+      const blocked = await getTesterAccessBlock(payload.sub);
+      if (blocked) {
+        res.status(403).json({ error: blocked, code: 'TESTER_EXPIRED' });
         return;
       }
       (req as Request & { authJwt?: JwtPayload }).authJwt = payload;

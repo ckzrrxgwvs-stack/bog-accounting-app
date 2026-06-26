@@ -41,6 +41,7 @@ import { financialConnectionsRouter } from './routes/financialConnections';
 import { officeRouter } from './routes/office';
 import { setupRouter } from './routes/setup';
 import { portfolioRouter } from './routes/portfolio';
+import { testerInvitesRouter } from './routes/testerInvites';
 
 config({ override: true });
 
@@ -110,6 +111,7 @@ app.use('/api/financial-connections', financialConnectionsRouter);
 app.use('/api/office', officeRouter);
 app.use('/api/setup', setupRouter);
 app.use('/api/portfolio', portfolioRouter);
+app.use('/api/tester-invites', testerInvitesRouter);
 
 // Health check
 app.get('/api/health', async (_req, res) => {

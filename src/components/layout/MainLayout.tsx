@@ -1,8 +1,9 @@
 // Main shell — BOG “ledger workspace”: structured nav (QB-like clarity) + ink/paper (our brand)
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+import { api } from '@/services/api';
 import { LogoWithStatus } from '@/components/Logo';
 import { useServerMode } from '@/hooks/useServerMode';
 import {
@@ -129,10 +130,44 @@ export function MainLayout() {
     return hasModuleAccess(item.module);
   });
 
+  const [testerDaysLeft, setTesterDaysLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!user?.isTester) {
+      setTesterDaysLeft(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const res = await api.getMyTesterAccess();
+      if (cancelled || !res.success || !res.data) return;
+      const d = res.data;
+      if (d.isTester && d.daysRemaining != null) setTesterDaysLeft(d.daysRemaining);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.isTester]);
+
+  const testerExpiryLabel =
+    user?.accessExpiresAt != null
+      ? new Date(user.accessExpiresAt).toLocaleDateString()
+      : null;
+
   return (
     <BusinessWorkspaceProvider>
     <div className="min-h-screen bg-bog-paper text-bog-ink">
       <CommandPalette />
+      {user?.isTester && testerDaysLeft != null ? (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-950">
+          <strong>Beta sandbox</strong> — {testerDaysLeft} day{testerDaysLeft === 1 ? '' : 's'} left
+          {testerExpiryLabel ? ` (through ${testerExpiryLabel})` : ''}. Explore everything and share feedback in{' '}
+          <Link to="/product-intelligence" className="font-medium underline">
+            Product intelligence
+          </Link>
+          .
+        </div>
+      ) : null}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-bog-ink/40 backdrop-blur-[2px] lg:hidden"
@@ -159,8 +194,6 @@ export function MainLayout() {
             <X size={20} />
           </button>
         </div>
-
-        <BusinessWorkspaceSwitcher />
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4 bog-sidebar-nav">
           <p className="bog-section-label px-3 pb-2 pt-1">Workspace</p>
@@ -237,21 +270,24 @@ export function MainLayout() {
       </aside>
 
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-30 flex h-14 items-center border-b border-bog-rule bg-white/90 px-4 backdrop-blur-md lg:hidden">
-          <button
-            type="button"
-            className="rounded-lg p-2 text-zinc-600 hover:bg-bog-sheet hover:text-bog-ink"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open menu"
-          >
-            <Menu size={22} />
-          </button>
-          <span className="ml-3 font-semibold tracking-tight text-bog-ink">
-            BOG-Pi<span className="font-figures text-[hsl(var(--bog-accent))]"> π</span>
-          </span>
+        <header className="sticky top-0 z-40 border-b border-bog-rule bg-white/95 shadow-sm backdrop-blur-md">
+          <div className="flex h-14 items-center gap-2 px-2 sm:px-4">
+            <button
+              type="button"
+              className="shrink-0 rounded-lg p-2 text-zinc-600 hover:bg-bog-sheet hover:text-bog-ink lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              <Menu size={22} />
+            </button>
+            <div className="flex min-w-0 flex-1 items-center justify-center">
+              <BusinessWorkspaceSwitcher />
+            </div>
+            <div className="w-10 shrink-0 lg:hidden" aria-hidden />
+          </div>
         </header>
 
-        <main className="min-h-[calc(100vh-3.5rem)] lg:min-h-screen bog-main-content">
+        <main className="min-h-[calc(100vh-3.5rem)] bog-main-content">
           {serverMode === 'schema_pending' && (
             <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900">
               Database connected — applying schema on API startup. Wait ~1 min, then click <strong>Refresh</strong> on
