@@ -16,7 +16,6 @@ import {
   Sparkles,
   Package,
   Receipt,
-  Users,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/services/api';
@@ -87,12 +86,12 @@ function QuickAction({ title, description, href, icon, badge }: QuickActionProps
       </div>
       <div className="ml-4 flex-1">
         <div className="flex items-center">
-          <span className="font-semibold text-black group-hover:text-black">{title}</span>
+          <span className="font-semibold text-bog-ink group-hover:text-bog-ink">{title}</span>
           {badge && <span className="ml-2">{badge}</span>}
         </div>
-        <span className="text-sm text-gray-500">{description}</span>
+        <span className="text-sm text-zinc-500">{description}</span>
       </div>
-      <ArrowRight size={18} className="text-gray-300 group-hover:text-black group-hover:translate-x-1 transition-all" />
+      <ArrowRight size={18} className="text-zinc-300 transition-all group-hover:translate-x-1 group-hover:text-bog-ink" />
     </Link>
   );
 }
@@ -110,14 +109,14 @@ function RecentTransaction({ date, description, amount, type, icon }: RecentTran
   return (
     <div className="flex items-center justify-between px-4 py-3 transition-colors hover:bg-bog-sheet/80">
       <div className="flex items-center">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-          isPositive ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
+        <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+          isPositive ? 'bg-emerald-100 text-emerald-700' : 'bg-bog-sheet text-zinc-600'
         }`}>
           {icon}
         </div>
         <div className="ml-3">
-          <div className="font-medium text-black">{description}</div>
-          <div className="text-xs text-gray-500">{date} • {type}</div>
+          <div className="font-medium text-bog-ink">{description}</div>
+          <div className="text-xs text-zinc-500">{date} • {type}</div>
         </div>
       </div>
       <div className={`font-figures font-semibold tabular-nums ${isPositive ? 'text-green-700' : 'text-bog-ink'}`}>
@@ -151,7 +150,7 @@ function AgingBucketList({ buckets, emptyLabel }: { buckets: AgingBucket[]; empt
         <div key={item.bucket} className="flex items-center justify-between">
           <div className="flex items-center">
             <div className={`w-2 h-2 ${BUCKET_COLORS[item.bucket] ?? 'bg-zinc-400'} rounded-full mr-2`} />
-            <span className="text-sm text-gray-600">{item.bucket}</span>
+            <span className="text-sm text-zinc-600">{item.bucket}</span>
           </div>
           <span className="font-figures text-sm font-semibold text-bog-ink">{fmtMoney(item.amount)}</span>
         </div>
@@ -321,8 +320,9 @@ export function Dashboard() {
     <div className="bog-workspace border-b border-bog-rule">
       <div className="border-b border-bog-rule bg-white/85 px-6 py-6 backdrop-blur-sm lg:px-8">
       {opsNote && (
-        <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-950">
-          <span className="font-medium">Reminders:</span> {opsNote}
+        <div className="mb-4 rounded-lg border border-[hsl(var(--bog-accent))]/25 bg-[hsl(var(--bog-accent-muted))] px-4 py-3 text-sm text-bog-ink">
+          <p className="bog-section-label mb-1.5 !text-[hsl(var(--bog-accent))]">Action items</p>
+          <span className="font-medium">{opsNote}</span>
         </div>
       )}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -409,7 +409,7 @@ export function Dashboard() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-lg font-semibold text-bog-ink">Aging summary</h2>
-                <div className="flex items-center mt-1 text-xs text-gray-500">
+                <div className="mt-1 flex items-center text-xs text-zinc-500">
                   <Clock size={12} className="mr-1" />
                   Updated just now
                 </div>
@@ -419,7 +419,7 @@ export function Dashboard() {
             {/* AR Aging */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium text-gray-500">Accounts Receivable</h3>
+                <h3 className="text-sm font-medium text-zinc-500">Accounts Receivable</h3>
                 <span className="rounded-md bg-bog-sheet px-2 py-1 font-figures text-xs font-semibold text-bog-ink">
                   {fmtMoney(aging.arTotal)}
                 </span>
@@ -432,9 +432,9 @@ export function Dashboard() {
             </div>
 
             {/* AP Aging */}
-            <div className="pt-4 border-t border-gray-100">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium text-gray-500">Accounts Payable</h3>
+            <div className="border-t border-bog-rule pt-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-medium text-zinc-500">Accounts Payable</h3>
                 <span className="rounded-md bg-bog-sheet px-2 py-1 font-figures text-xs font-semibold text-bog-ink">
                   {fmtMoney(aging.apTotal)}
                 </span>
@@ -497,32 +497,18 @@ export function Dashboard() {
             </div>
           </Link>
 
-          {/* Team Activity */}
+          {/* Team — link only; no placeholder avatars */}
           <div className="bog-statement-card p-6">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-bog-ink">Team</h2>
               <Link to="/users" className="text-xs font-medium text-[hsl(var(--bog-accent))] hover:underline">
-                Manage
+                Manage users
               </Link>
             </div>
-            <div className="-space-x-2 flex items-center">
-              {[
-                { initials: 'JS', name: 'John Smith' },
-                { initials: 'SJ', name: 'Sarah Johnson' },
-                { initials: 'CR', name: 'Carlos Rodriguez' },
-              ].map((member, i) => (
-                <div
-                  key={i}
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-bog-ink text-xs font-bold text-white transition-transform hover:scale-110"
-                  title={member.name}
-                >
-                  {member.initials}
-                </div>
-              ))}
-              <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-bog-sheet text-xs font-medium text-zinc-600">
-                +2
-              </div>
-            </div>
+            <p className="text-sm leading-relaxed text-zinc-500">
+              Invite colleagues and assign module access under Users. Team activity will appear here when user
+              presence is wired to the API.
+            </p>
           </div>
         </div>
       </div>

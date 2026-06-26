@@ -134,6 +134,15 @@
     line-height: 1.55;
   }
 
+  .bog-main-panel {
+    @apply min-h-[calc(100vh-12rem)];
+  }
+
+  .bog-sidebar-nav a:focus-visible,
+  .bog-sidebar-nav button:focus-visible {
+    @apply outline-none ring-2 ring-[hsl(var(--bog-accent))]/40 ring-offset-2 ring-offset-[hsl(var(--bog-sidebar))];
+  }
+
   @keyframes bog-neon-aura-breathe {
     0%,
     100% {

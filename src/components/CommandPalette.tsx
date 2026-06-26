@@ -11,18 +11,53 @@ import {
   FileSpreadsheet,
   Link2,
   Search,
+  Layers,
+  UserCircle,
+  Building2,
+  CreditCard,
+  FileText,
+  Package,
+  Receipt,
+  FileCheck,
+  LayoutGrid,
+  Sparkles,
+  ShoppingCart,
+  ClipboardList,
+  MessageSquare,
+  Users,
+  Lightbulb,
+  Bot,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { label: 'Dashboard', href: '/', icon: LayoutDashboard, keywords: 'home kpi' },
-  { label: 'General Ledger', href: '/ledger', icon: BookOpen, keywords: 'journal entries' },
-  { label: 'Reports', href: '/reports', icon: BarChart3, keywords: 'financial statements' },
+  { label: 'Dashboard', href: '/', icon: LayoutDashboard, keywords: 'home kpi overview' },
+  { label: 'Chart of accounts', href: '/ledger/coa', icon: Layers, keywords: 'coa accounts' },
+  { label: 'Opening balances', href: '/ledger/opening-balances', icon: Landmark, keywords: 'opening balance' },
+  { label: 'General Ledger', href: '/ledger', icon: BookOpen, keywords: 'journal entries gl' },
+  { label: 'Period close', href: '/ledger/period-close', icon: Landmark, keywords: 'close lock period' },
+  { label: 'Customers', href: '/master/customers', icon: UserCircle, keywords: 'ar customer master' },
+  { label: 'Accounts Receivable', href: '/ar', icon: FileText, keywords: 'invoices ar receivable' },
+  { label: 'Vendors', href: '/master/vendors', icon: Building2, keywords: 'ap vendor master' },
+  { label: 'Accounts Payable', href: '/ap', icon: CreditCard, keywords: 'bills ap payable' },
+  { label: 'Inventory', href: '/inventory', icon: Package, keywords: 'stock items' },
+  { label: 'Payroll', href: '/payroll', icon: Receipt, keywords: 'payroll wages' },
+  { label: 'CFDI (Mexico)', href: '/cfdi', icon: FileCheck, keywords: 'mexico tax cfdi' },
+  { label: 'Reports', href: '/reports', icon: BarChart3, keywords: 'financial statements pnl balance' },
   { label: 'Data Studio', href: '/data-studio', icon: Table2, keywords: 'pivot analysis' },
-  { label: 'Financial connections', href: '/integrations/financial', icon: Link2, keywords: 'bank plaid paypal' },
-  { label: 'Microsoft Office hub', href: '/office', icon: FileSpreadsheet, keywords: 'excel word export import' },
-  { label: 'Period close', href: '/ledger/period-close', icon: Landmark, keywords: 'close lock' },
-  { label: 'Settings', href: '/settings', icon: Settings, keywords: 'company display comfort' },
+  { label: 'Office hub', href: '/office', icon: FileSpreadsheet, keywords: 'excel word export import' },
+  { label: 'Bank connections', href: '/integrations/financial', icon: Link2, keywords: 'bank plaid paypal' },
+  { label: 'ERP hub', href: '/erp', icon: LayoutGrid, keywords: 'erp operations' },
+  { label: 'ERP Assistant', href: '/erp/assistant', icon: Sparkles, keywords: 'erp ai assistant' },
+  { label: 'Purchase orders', href: '/erp/purchase-orders', icon: ShoppingCart, keywords: 'po purchasing' },
+  { label: 'Sales orders', href: '/erp/sales-orders', icon: ClipboardList, keywords: 'so sales' },
+  { label: 'AI CPA Assistant', href: '/ai-cpa', icon: MessageSquare, keywords: 'ai cpa chat controller' },
+  { label: 'Users', href: '/users', icon: Users, keywords: 'team permissions roles' },
+  { label: 'Product intelligence', href: '/product-intelligence', icon: Lightbulb, keywords: 'feedback ideas' },
+  { label: 'Agent operations', href: '/agent-operations', icon: Bot, keywords: 'agents crew sync' },
+  { label: 'Settings', href: '/settings', icon: Settings, keywords: 'company display comfort licensing' },
 ];
+
+export const BOG_COMMAND_PALETTE_EVENT = 'bog:open-command-palette';
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -35,8 +70,13 @@ export function CommandPalette() {
         setOpen((v) => !v);
       }
     };
+    const onOpen = () => setOpen(true);
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener(BOG_COMMAND_PALETTE_EVENT, onOpen);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener(BOG_COMMAND_PALETTE_EVENT, onOpen);
+    };
   }, []);
 
   if (!open) return null;
@@ -64,7 +104,7 @@ export function CommandPalette() {
           <Command.Empty className="px-3 py-6 text-center text-sm text-zinc-500">No matches.</Command.Empty>
           {NAV_ITEMS.map((item) => (
             <Command.Item
-              key={item.href}
+              key={item.href + item.label}
               value={`${item.label} ${item.keywords}`}
               onSelect={() => {
                 navigate(item.href);

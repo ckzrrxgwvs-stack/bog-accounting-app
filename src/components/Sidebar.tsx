@@ -1,3 +1,4 @@
+// @deprecated — use MainLayout (src/components/layout/MainLayout.tsx). Kept for reference only.
 // Sidebar Navigation con personalidad
 
 import React from 'react';

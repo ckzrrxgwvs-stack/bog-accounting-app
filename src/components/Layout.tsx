@@ -1,3 +1,4 @@
+// @deprecated — use MainLayout (src/components/layout/MainLayout.tsx). Kept for reference only.
 // Main Layout Component - Con personalidad y estilo
 
 import React from 'react';
