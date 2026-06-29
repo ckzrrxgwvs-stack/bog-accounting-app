@@ -29,6 +29,7 @@ type Props = {
   onToggleFreeze: () => void;
   highlightExtremes: boolean;
   onToggleHighlight: () => void;
+  cellStyleGallery?: React.ReactNode;
 };
 
 const tabs: { id: RibbonTabId; label: string }[] = [
@@ -51,6 +52,7 @@ export function DataStudioRibbon({
   onToggleFreeze,
   highlightExtremes,
   onToggleHighlight,
+  cellStyleGallery,
 }: Props) {
   return (
     <div className="border-b border-bog-rule bg-white shadow-sm">
@@ -110,21 +112,26 @@ export function DataStudioRibbon({
         )}
 
         {activeTab === 'sheet' && (
-          <RibbonGroup label="Reading layout">
-            <RibbonBtn
-              icon={<Rows size={16} />}
-              label={freezeHeader ? 'Pinned header on' : 'Pin header row'}
-              onClick={onToggleFreeze}
-              active={freezeHeader}
-            />
-            <RibbonBtn
-              icon={<Highlighter size={16} />}
-              label={highlightExtremes ? 'Heat hints on' : 'Highlight extremes'}
-              onClick={onToggleHighlight}
-              active={highlightExtremes}
-            />
-            <RibbonBtn icon={<Eye size={16} />} label="Comfort read mode" onClick={() => {}} disabled />
-          </RibbonGroup>
+          <>
+            <RibbonGroup label="Reading layout">
+              <RibbonBtn
+                icon={<Rows size={16} />}
+                label={freezeHeader ? 'Pinned header on' : 'Pin header row'}
+                onClick={onToggleFreeze}
+                active={freezeHeader}
+              />
+              <RibbonBtn
+                icon={<Highlighter size={16} />}
+                label={highlightExtremes ? 'Heat hints on' : 'Highlight extremes'}
+                onClick={onToggleHighlight}
+                active={highlightExtremes}
+              />
+              <RibbonBtn icon={<Eye size={16} />} label="Comfort read mode" onClick={() => {}} disabled />
+            </RibbonGroup>
+            {cellStyleGallery ? (
+              <RibbonGroup label="Cell styles">{cellStyleGallery}</RibbonGroup>
+            ) : null}
+          </>
         )}
       </div>
     </div>

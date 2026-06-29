@@ -418,6 +418,67 @@
   html[data-graphic-style='high-contrast'] .bog-section-label {
     @apply text-[hsl(var(--bog-ink))];
   }
+
+  /* Per-cell / row styles (Excel Cell Styles gallery) */
+  .bog-cell-good {
+    background-color: hsl(142 40% 92%);
+    color: hsl(142 45% 22%);
+  }
+
+  .bog-cell-bad {
+    background-color: hsl(0 45% 94%);
+    color: hsl(0 55% 28%);
+  }
+
+  .bog-cell-neutral {
+    background-color: hsl(48 90% 90%);
+    color: hsl(32 55% 24%);
+  }
+
+  .bog-cell-input {
+    background-color: hsl(var(--bog-paper));
+    color: hsl(var(--bog-ink));
+    box-shadow: inset 3px 0 0 hsl(var(--bog-accent));
+  }
+
+  .bog-cell-total {
+    background-color: hsl(var(--bog-sheet));
+    color: hsl(var(--bog-ink));
+    font-weight: 600;
+    border-top: 2px solid hsl(var(--bog-line-key));
+  }
+
+  .bog-cell-heading {
+    background-color: hsl(var(--bog-sheet));
+    color: hsl(var(--bog-ink));
+    font-weight: 700;
+  }
+
+  .bog-cell-note {
+    background-color: hsl(240 5% 98%);
+    color: hsl(240 4% 40%);
+    font-style: italic;
+  }
+
+  html[data-theme='midnight-audit'] .bog-cell-good {
+    background-color: hsl(142 30% 18%);
+    color: hsl(142 50% 85%);
+  }
+
+  html[data-theme='midnight-audit'] .bog-cell-bad {
+    background-color: hsl(0 35% 18%);
+    color: hsl(0 60% 88%);
+  }
+
+  html[data-theme='midnight-audit'] .bog-cell-neutral {
+    background-color: hsl(48 40% 16%);
+    color: hsl(48 80% 88%);
+  }
+
+  .bog-cell-selected {
+    outline: 2px solid hsl(var(--bog-accent));
+    outline-offset: -2px;
+  }
 }
 
 img {

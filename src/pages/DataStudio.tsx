@@ -22,6 +22,9 @@ import {
   ledgerTdNum,
 } from '@/components/layout/ModuleWorkspace';
 import { DataStudioRibbon, type RibbonTabId } from '@/components/dataStudio/DataStudioRibbon';
+import { CellStyleGallery } from '@/components/dataStudio/CellStyleGallery';
+import { useCellStyles } from '@/hooks/useCellStyles';
+import { cn } from '@/lib/utils';
 import {
   SAMPLE_DATASETS,
   type DatasetDef,
@@ -58,6 +61,9 @@ export function DataStudio() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const [filters, setFilters] = useState<Record<string, string[]>>({});
+
+  const flatTableScope = `${dataset.id}:data-studio-flat`;
+  const cellStyles = useCellStyles(flatTableScope);
 
   React.useEffect(() => {
     const tc = textCols.map((c) => c.key);
@@ -117,7 +123,9 @@ export function DataStudio() {
     setHighlightExtremes(false);
     setFilters({});
     setRibbonTab('start');
-  }, []);
+    cellStyles.clearAll();
+    cellStyles.setSelection(null);
+  }, [cellStyles.clearAll, cellStyles.setSelection]);
 
   const maxPerCol = useMemo(() => {
     if (!pivot) return [];
@@ -168,6 +176,16 @@ export function DataStudio() {
             onToggleFreeze={() => setFreezeHeader((x) => !x)}
             highlightExtremes={highlightExtremes}
             onToggleHighlight={() => setHighlightExtremes((x) => !x)}
+            cellStyleGallery={
+              <CellStyleGallery
+                applyTarget={cellStyles.applyTarget}
+                onApplyTargetChange={cellStyles.setApplyTarget}
+                onPickStyle={cellStyles.applyToSelection}
+                onClearAll={cellStyles.clearAll}
+                hasSelection={cellStyles.hasSelection}
+                disabled={crossTabMode}
+              />
+            }
           />
         </div>
 
@@ -268,6 +286,10 @@ export function DataStudio() {
                     </select>
                   </label>
                 </div>
+                <p className="mt-3 text-xs text-zinc-500">
+                  <strong>Cell styles:</strong> open the <strong>Sheet view</strong> ribbon tab → pick Good, Bad,
+                  Neutral, etc. Click a row or cell first, then apply.
+                </p>
                 <div className={`mt-4 overflow-auto ${ledgerTableShell}`}>
                   <table className="w-full min-w-[640px] text-sm">
                     <thead className={freezeHeader ? 'sticky top-0 z-10 bg-white shadow-sm' : ''}>
@@ -280,22 +302,48 @@ export function DataStudio() {
                       </tr>
                     </thead>
                     <tbody>
-                      {sortedFlat.map((r, i) => (
-                        <tr key={i} className={ledgerRow}>
-                          {dataset.columns.map((c) => (
-                            <td
-                              key={c.key}
-                              className={`px-4 py-2 ${c.type === 'number' ? `text-right ${ledgerTdNum}` : ''}`}
-                            >
-                              {String(r[c.key] ?? '')}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
+                      {sortedFlat.map((r, i) => {
+                        const rowKey = `${i}`;
+                        return (
+                          <tr
+                            key={i}
+                            className={cn(
+                              ledgerRow,
+                              cellStyles.classForCell(rowKey),
+                              cellStyles.isSelected(rowKey) && !cellStyles.selection?.colKey && 'ring-1 ring-inset ring-[hsl(var(--bog-accent))]/40'
+                            )}
+                            onClick={() => cellStyles.setSelection({ rowKey })}
+                          >
+                            {dataset.columns.map((c) => (
+                              <td
+                                key={c.key}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  cellStyles.setSelection({ rowKey, colKey: c.key });
+                                }}
+                                className={cn(
+                                  'px-4 py-2 cursor-cell',
+                                  c.type === 'number' ? `text-right ${ledgerTdNum}` : '',
+                                  cellStyles.classForCell(rowKey, c.key),
+                                  cellStyles.isSelected(rowKey, c.key) && 'bog-cell-selected'
+                                )}
+                              >
+                                {String(r[c.key] ?? '')}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </section>
+            )}
+
+            {crossTabMode && (
+              <p className="rounded-lg border border-bog-rule bg-bog-sheet/50 px-4 py-2 text-xs text-zinc-600">
+                Turn off <strong>Cross-tab</strong> (Summarize tab) to format individual fact rows with cell styles.
+              </p>
             )}
 
             {crossTabMode && pivot && filteredRows.length === 0 && (
