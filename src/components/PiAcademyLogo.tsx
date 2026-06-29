@@ -90,25 +90,43 @@ export function PiAcademyMarkGlow({ size = 56 }: { size?: number }) {
   );
 }
 
-/** Pi Academy wordmark + mark. */
-export function PiAcademyLogo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
+/**
+ * Pi Academy logo — same features as the BOG-Pi logo (mark + wordmark + the
+ * infinite-π link), but its own identity: π lives inside the cube, the wordmark
+ * is the reverse — "Pi-BOG" — and the ∞ link opens the infinite digits of π.
+ */
+export function PiAcademyLogo({ size = 'md', withGlow = false }: { size?: 'sm' | 'md' | 'lg'; withGlow?: boolean }) {
   const px = { sm: 36, md: 44, lg: 56 }[size];
   const title = { sm: 'text-base', md: 'text-lg', lg: 'text-xl' }[size];
 
   return (
     <div className="flex items-center gap-3">
-      <div className="shrink-0 rounded-xl">
-        <PiAcademyMark size={px} />
-      </div>
+      {withGlow ? (
+        <PiAcademyMarkGlow size={px} />
+      ) : (
+        <div className="shrink-0 rounded-xl">
+          <PiAcademyMark size={px} />
+        </div>
+      )}
       <div className="flex min-w-0 flex-col leading-tight">
-        <span className={`font-bold tracking-tight text-bog-ink ${title}`}>
-          Pi <span style={{ color: ACADEMY_AMBER }}>Academy</span>
-          <span className="font-figures font-semibold" style={{ color: ACADEMY_AMBER }}>
-            {' '}
-            π
-          </span>
+        <span className={`inline-flex items-center gap-1 font-bold tracking-tight text-bog-ink ${title}`}>
+          Pi-<span style={{ color: ACADEMY_AMBER }}>BOG</span>
+          <button
+            type="button"
+            title="See π go on forever"
+            aria-label="Show the infinite digits of pi"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              window.dispatchEvent(new Event('bog:open-pi'));
+            }}
+            className="font-figures text-[13px] leading-none text-zinc-400 transition-colors hover:text-[#e8990f]"
+            style={{ textShadow: `0 0 6px ${ACADEMY_AMBER}55` }}
+          >
+            π∞
+          </button>
         </span>
-        <span className="text-[11px] text-zinc-500">Learn the discipline behind the ledger</span>
+        <span className="text-[11px] text-zinc-500">Pi Academy · learn the discipline behind the ledger</span>
       </div>
     </div>
   );

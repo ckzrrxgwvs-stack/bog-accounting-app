@@ -8,7 +8,7 @@
  */
 import { ListChecks, FlaskConical, Sparkles, Trophy, Compass, Check, Lock, ArrowRight } from 'lucide-react';
 import { ModuleWorkspace } from '@/components/layout/ModuleWorkspace';
-import { PiAcademyMarkGlow, ACADEMY_AMBER } from '@/components/PiAcademyLogo';
+import { PiAcademyLogo, ACADEMY_AMBER } from '@/components/PiAcademyLogo';
 import { useAcademyAppIcon } from '@/hooks/useAcademyAppIcon';
 
 const AMBER = ACADEMY_AMBER;
@@ -76,19 +76,18 @@ export function Academy() {
           className="bog-statement-card overflow-hidden p-6 lg:p-8"
           style={{ borderColor: 'hsl(38 30% 88%)' }}
         >
-          <div className="flex items-start gap-5">
-            <PiAcademyMarkGlow size={56} />
-            <div>
-              <h2 className="text-lg font-semibold text-bog-ink">
-                Your own practice room — learn by doing
-              </h2>
-              <p className="mt-1 text-sm leading-relaxed text-zinc-600">
-                Pi Academy is a place of its own, a sibling of the BOG ledger you already trust. Choose the
-                accounting competencies you want to grow, practice them hands-on in the real workspace, and watch
-                your mastery climb — one module at a time. Some learners go all the way to CPA readiness; many just
-                sharpen a single skill. Both are first-class here.
-              </p>
-            </div>
+          <PiAcademyLogo size="lg" withGlow />
+
+          <div className="mt-5">
+            <h2 className="text-lg font-semibold text-bog-ink">
+              Your own practice room — learn by doing
+            </h2>
+            <p className="mt-1 text-sm leading-relaxed text-zinc-600">
+              Pi Academy is a place of its own, a sibling of the BOG ledger you already trust. Choose the
+              accounting competencies you want to grow, practice them hands-on in the real workspace, and watch
+              your mastery climb — one module at a time. Some learners go all the way to CPA readiness; many just
+              sharpen a single skill. Both are first-class here.
+            </p>
           </div>
 
           <div

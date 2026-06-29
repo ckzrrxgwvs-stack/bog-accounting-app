@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#0c0c0d"/>
+  <circle cx="300" cy="315" r="280" fill="#3b82f6" fill-opacity="0.10"/>
+  <!-- BOG-Pi cube mark, scaled -->
+  <g transform="translate(120,135) scale(4.5)">
+    <rect width="80" height="80" rx="14" fill="#141414"/>
+    <path fill="#fafafa" stroke="#0c0c0d" stroke-width="0.8" d="M40 14 62 27 40 40 18 27z"/>
+    <path fill="#e4e4e7" stroke="#0c0c0d" stroke-width="0.8" d="M18 27 40 40 40 66 18 53z"/>
+    <path fill="#f4f4f5" stroke="#0c0c0d" stroke-width="0.8" d="M62 27 40 40 40 66 62 53z"/>
+    <path fill="#3b82f6" d="M40 27 51 33 40 39 29 33z"/>
+  </g>
+  <!-- Wordmark + tagline -->
+  <text x="560" y="262" fill="#fafafa" font-size="92" font-weight="800" font-family="Helvetica, Arial, sans-serif">BOG-<tspan fill="#3b82f6">Pi</tspan></text>
+  <text x="562" y="332" fill="#3b82f6" font-size="42" font-weight="700" font-family="Helvetica, Arial, sans-serif">Books On The Go</text>
+  <text x="562" y="392" fill="#a1a1aa" font-size="32" font-family="Helvetica, Arial, sans-serif">Accounting workspace with AI controller assistance</text>
+  <text x="562" y="452" fill="#71717a" font-size="27" font-family="Georgia, 'Times New Roman', serif">&#960; 3.1416&#8230;  &#183;  ledger precision</text>
+</svg>
