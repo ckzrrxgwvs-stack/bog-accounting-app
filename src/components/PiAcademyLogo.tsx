@@ -3,7 +3,7 @@
 // an amber "crown" top face (the Academy's learning light) with π as the hero glyph.
 
 import { NeonAuraFrame } from '@/components/Logo';
-import { useNeonAuraPalette } from '@/hooks/useNeonAuraPalette';
+import { useNeonThemeSync } from '@/hooks/useNeonAuraPalette';
 
 export const ACADEMY_AMBER = 'hsl(38 90% 48%)';
 
@@ -81,7 +81,7 @@ export function PiAcademyMark({
  * crown switches with the neon so the two cubes share the same living treatment.
  */
 export function PiAcademyMarkGlow({ size = 56 }: { size?: number }) {
-  const aura = useNeonAuraPalette();
+  const aura = useNeonThemeSync();
   return (
     <NeonAuraFrame primary={aura.primary} secondary={aura.secondary} size={size}>
       <PiAcademyMark size={size} amber={aura.primary} />

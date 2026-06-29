@@ -1,7 +1,7 @@
 // BOG-Pi — Books On The Go · π precision (Rubik-inspired cube mark, original — not Rubik’s Cube™)
 
 import React from 'react';
-import { useNeonAuraPalette } from '@/hooks/useNeonAuraPalette';
+import { useNeonThemeSync } from '@/hooks/useNeonAuraPalette';
 
 const SIDEBAR_LOGO_PX = 50;
 
@@ -214,7 +214,7 @@ interface LogoWithStatusProps {
 }
 
 export function LogoWithStatus({ status = 'active' }: LogoWithStatusProps) {
-  const aura = useNeonAuraPalette();
+  const aura = useNeonThemeSync();
 
   const statusConfig = {
     active: { color: 'bg-emerald-500', label: 'Connected', textColor: 'text-emerald-400' },

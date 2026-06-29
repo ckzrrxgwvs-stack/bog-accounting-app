@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 import { ComfortModeProvider } from './context/ComfortModeContext.tsx'
+import { VisualPresetProvider } from './context/VisualPresetContext.tsx'
 import './index.css'
 import App from './App.tsx'
 
@@ -16,7 +17,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <ComfortModeProvider>
-        <App />
+        <VisualPresetProvider>
+          <App />
+        </VisualPresetProvider>
       </ComfortModeProvider>
     </ErrorBoundary>
   </StrictMode>,

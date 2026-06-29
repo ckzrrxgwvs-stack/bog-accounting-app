@@ -32,6 +32,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { useComfortMode } from '@/context/ComfortModeContext';
+import { VisualPresetGallery } from '@/components/settings/VisualPresetGallery';
 
 interface TabItem {
   id: string;
@@ -43,7 +44,7 @@ const tabs: TabItem[] = [
   { id: 'company', label: 'Company', icon: <Building size={18} /> },
   { id: 'security', label: 'Security', icon: <Shield size={18} /> },
   { id: 'integrations', label: 'Integrations', icon: <Globe size={18} /> },
-  { id: 'display', label: 'Display & comfort', icon: <Eye size={18} /> },
+  { id: 'display', label: 'Display & themes', icon: <Eye size={18} /> },
   { id: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
   { id: 'audit', label: 'Audit Log', icon: <FileText size={18} /> },
 ];
@@ -1641,8 +1642,12 @@ export function Settings() {
           onClick={comfort.resetComfort}
           className="mt-4 text-sm font-medium text-gray-600 underline hover:text-black"
         >
-          Reset to defaults
+          Reset comfort to defaults
         </button>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <VisualPresetGallery />
       </div>
     </div>
   );

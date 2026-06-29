@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useVisualPresetsOptional } from '@/context/VisualPresetContext';
 
 export type NeonAuraPalette = {
   id: string;
@@ -95,7 +96,11 @@ function hexToRgbChannels(hex: string): string {
  * sync with the logo cube. Mount once near the app root.
  */
 export function useNeonThemeSync(): NeonAuraPalette {
-  const palette = useNeonAuraPalette();
+  const presets = useVisualPresetsOptional();
+  const rotating = useNeonAuraPalette();
+  const palette: NeonAuraPalette = presets?.fixedNeon
+    ? { id: `theme-${presets.themeId}`, primary: presets.fixedNeon.primary, secondary: presets.fixedNeon.secondary }
+    : rotating;
 
   useEffect(() => {
     const root = document.documentElement;
