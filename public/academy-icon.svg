@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none">
+  <!-- Pi Academy launch icon - sibling of the BOG-Pi cube, but pi is the main face. -->
+  <rect width="80" height="80" rx="14" fill="#0c0c0d"/>
+  <!-- Isometric cube: left + right faces (the BOG DNA, integral to one another) -->
+  <path fill="#e4e4e7" stroke="#0c0c0d" stroke-width="0.8" d="M16 30 40 43 40 70 16 57z"/>
+  <path fill="#f4f4f5" stroke="#0c0c0d" stroke-width="0.8" d="M64 30 40 43 40 70 64 57z"/>
+  <!-- Amber crown (Pi Academy learning light) -->
+  <path fill="#e8990f" stroke="#0c0c0d" stroke-width="0.8" d="M40 17 64 30 40 43 16 30z"/>
+  <path stroke="#ffffff" stroke-opacity="0.55" stroke-width="0.8" stroke-linecap="round" d="M40 17V43M16 30h48"/>
+  <!-- pi - the main face, printed across the cube front -->
+  <text x="40" y="63" text-anchor="middle" fill="#0c0c0d" font-size="34" font-weight="700" font-family="Georgia, 'Times New Roman', serif">&#960;</text>
+</svg>

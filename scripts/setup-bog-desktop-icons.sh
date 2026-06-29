@@ -15,6 +15,9 @@ fi
 echo "→ Main program icon (BOG-Pi · Books On The Go)"
 bash scripts/create-mac-desktop-launcher.sh
 
+echo "→ Pi Academy icon (CPA practice — launches separately, integral sibling)"
+bash scripts/create-academy-desktop-launcher.sh
+
 URL_FILE="${BOG_FAMILY_PREVIEW_URL_FILE:-${HOME}/.bog-family-preview.url}"
 
 if [[ -n "${BOG_APP_URL:-}" ]] || [[ -f "${URL_FILE}" ]]; then
