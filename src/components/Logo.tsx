@@ -64,15 +64,24 @@ export function CubeLogoMark({
           className="transition-[fill] duration-[2s] ease-in-out"
         />
       )}
-      <path d="M22 38 L38 47" stroke="#0c0c0d" strokeWidth="0.65" strokeOpacity="0.28" />
-      <path d="M58 38 L42 47" stroke="#0c0c0d" strokeWidth="0.65" strokeOpacity="0.28" />
-      <path d="M29 45 L29 58" stroke="#0c0c0d" strokeWidth="0.65" strokeOpacity="0.28" />
-      <path d="M51 45 L51 58" stroke="#0c0c0d" strokeWidth="0.65" strokeOpacity="0.28" />
+      {/* BOG — identifies the cube (sibling of the π on the Pi Academy cube) */}
+      <text
+        x="40"
+        y="55"
+        textAnchor="middle"
+        fill="#0c0c0d"
+        fontSize="10.5"
+        fontWeight="800"
+        fontFamily="Helvetica, Arial, sans-serif"
+        letterSpacing="-0.5"
+      >
+        BOG
+      </text>
     </svg>
   );
 }
 
-function NeonAuraFrame({
+export function NeonAuraFrame({
   primary,
   secondary,
   size,

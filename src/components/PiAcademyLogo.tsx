@@ -2,6 +2,9 @@
 // Same isometric cube geometry as BOG-Pi (Logo.tsx), but its own identity:
 // an amber "crown" top face (the Academy's learning light) with π as the hero glyph.
 
+import { NeonAuraFrame } from '@/components/Logo';
+import { useNeonAuraPalette } from '@/hooks/useNeonAuraPalette';
+
 export const ACADEMY_AMBER = 'hsl(38 90% 48%)';
 
 /** Isometric cube with an amber crown + π hero — Pi Academy's own mark. */
@@ -72,21 +75,17 @@ export function PiAcademyMark({
   );
 }
 
-/** Mark wrapped in a soft amber aura — sibling of the BOG neon glow. */
+/**
+ * Mark wrapped in the same animated sun-ray aura as the BOG cube, with the live
+ * neon palette that switches at intervals — applied to the π cube. The amber
+ * crown switches with the neon so the two cubes share the same living treatment.
+ */
 export function PiAcademyMarkGlow({ size = 56 }: { size?: number }) {
+  const aura = useNeonAuraPalette();
   return (
-    <div
-      className="relative flex shrink-0 items-center justify-center rounded-2xl"
-      style={{
-        background: `radial-gradient(circle at 50% 45%, ${ACADEMY_AMBER}22 0%, transparent 70%)`,
-        boxShadow: `0 0 22px ${ACADEMY_AMBER}33, 0 0 44px ${ACADEMY_AMBER}1f`,
-        padding: Math.round(size * 0.28),
-      }}
-    >
-      <div className="overflow-hidden rounded-xl ring-1 ring-black/5">
-        <PiAcademyMark size={size} />
-      </div>
-    </div>
+    <NeonAuraFrame primary={aura.primary} secondary={aura.secondary} size={size}>
+      <PiAcademyMark size={size} amber={aura.primary} />
+    </NeonAuraFrame>
   );
 }
 

@@ -9,6 +9,7 @@
     <path fill="#e4e4e7" stroke="#0c0c0d" stroke-width="0.8" d="M18 27 40 40 40 66 18 53z"/>
     <path fill="#f4f4f5" stroke="#0c0c0d" stroke-width="0.8" d="M62 27 40 40 40 66 62 53z"/>
     <path fill="#3b82f6" d="M40 27 51 33 40 39 29 33z"/>
+    <text x="40" y="56" text-anchor="middle" fill="#0c0c0d" font-size="11" font-weight="800" font-family="Helvetica, Arial, sans-serif" letter-spacing="-0.5">BOG</text>
   </g>
   <!-- Wordmark + tagline -->
   <text x="560" y="262" fill="#fafafa" font-size="92" font-weight="800" font-family="Helvetica, Arial, sans-serif">BOG-<tspan fill="#3b82f6">Pi</tspan></text>
