@@ -1087,6 +1087,7 @@ class ApiClient {
         revokedAt: string | null;
         enrollmentCount: number;
         recentEnrollments: Array<{
+          userId: string;
           email: string;
           name: string;
           firstLoginAt: string;
@@ -1106,6 +1107,14 @@ class ApiClient {
 
   async revokeTesterInvite(id: string) {
     return this.request(`/tester-invites/${id}/revoke`, { method: 'POST' });
+  }
+
+  /** Remove a single preview guest so they can sign up again (President). */
+  async removeTesterEnrollment(userId: string) {
+    return this.request<{ success: boolean; email: string }>(
+      `/tester-invites/enrollments/${encodeURIComponent(userId)}/remove`,
+      { method: 'POST' }
+    );
   }
 
   async getMyTesterAccess() {

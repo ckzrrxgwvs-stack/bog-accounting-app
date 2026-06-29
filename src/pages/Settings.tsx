@@ -173,6 +173,7 @@ export function Settings() {
     revokedAt: string | null;
     enrollmentCount: number;
     recentEnrollments: Array<{
+      userId: string;
       email: string;
       name: string;
       firstLoginAt: string;
@@ -591,11 +592,38 @@ export function Settings() {
                       <td className="py-3 pr-4 whitespace-nowrap">{link.trialDays} days</td>
                       <td className="py-3 pr-4">
                         <p>{link.enrollmentCount} signed up</p>
-                        {link.recentEnrollments.slice(0, 3).map((e) => (
-                          <p key={e.email} className="text-xs text-gray-500">
-                            {e.email}
-                            {e.expired ? ' (expired)' : ''}
-                          </p>
+                        {link.recentEnrollments.slice(0, 5).map((e) => (
+                          <div key={e.userId} className="mt-1 flex items-center gap-2">
+                            <span className="text-xs text-gray-500">
+                              {e.name ? `${e.name} · ` : ''}
+                              {e.email}
+                              {e.expired ? ' (expired)' : ''}
+                            </span>
+                            <button
+                              type="button"
+                              className="text-xs text-red-600 hover:underline"
+                              onClick={async () => {
+                                if (
+                                  !confirm(
+                                    `Remove ${e.email}? Their preview account and sandbox are deleted and the email is freed, so they can register again with this link.`
+                                  )
+                                )
+                                  return;
+                                const res = await api.removeTesterEnrollment(e.userId);
+                                if (!res.success) {
+                                  alert(res.error ?? 'Could not remove this guest');
+                                  return;
+                                }
+                                const list = await api.listTesterInvites();
+                                if (list.success && list.data) {
+                                  const payload = list.data as { links?: TesterLinkRow[] };
+                                  setTesterLinks(payload.links ?? []);
+                                }
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </div>
                         ))}
                       </td>
                       <td className="py-3">

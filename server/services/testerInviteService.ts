@@ -255,6 +255,7 @@ export async function listTesterInviteLinks() {
     revokedAt: r.revokedAt?.toISOString() ?? null,
     enrollmentCount: r._count.enrollments,
     recentEnrollments: r.enrollments.map((e) => ({
+      userId: e.userId,
       email: e.user.email,
       name: `${e.user.firstName} ${e.user.lastName}`.trim(),
       firstLoginAt: e.firstLoginAt.toISOString(),
@@ -269,4 +270,45 @@ export async function revokeTesterInviteLink(id: string): Promise<void> {
     where: { id },
     data: { isActive: false, revokedAt: new Date() },
   });
+}
+
+/**
+ * Fully remove a single preview guest so they can register again.
+ *
+ * Safe-by-design: only ever touches accounts whose company is an isolated
+ * tester sandbox. Deleting the user cascades the enrollment, sessions, book
+ * access, and module grants; chat sessions are cleared first because their FK
+ * is required (Restrict). The empty sandbox company is left inert — it shares
+ * portfolio book references with deployment-wide investment GL companies, so we
+ * never tear that graph down here.
+ */
+export async function removeTesterEnrollment(userId: string): Promise<{ email: string }> {
+  const enrollment = await prisma.testerEnrollment.findUnique({
+    where: { userId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          company: { select: { isTesterSandbox: true } },
+        },
+      },
+    },
+  });
+
+  if (!enrollment) {
+    throw new Error('No preview guest found for this account');
+  }
+  if (!enrollment.user.company?.isTesterSandbox) {
+    throw new Error('Refusing to remove a non-preview account');
+  }
+
+  const email = enrollment.user.email;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.chatSession.deleteMany({ where: { userId } });
+    await tx.user.delete({ where: { id: userId } });
+  });
+
+  return { email };
 }

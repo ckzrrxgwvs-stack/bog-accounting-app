@@ -11,6 +11,7 @@ import {
   getTesterInvitePublic,
   issueTesterInviteLink,
   listTesterInviteLinks,
+  removeTesterEnrollment,
   revokeTesterInviteLink,
 } from '../services/testerInviteService';
 
@@ -107,6 +108,18 @@ router.post('/:id/revoke', ...presidentChain, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Could not revoke invite' });
+  }
+});
+
+/** Remove a single preview guest so they can sign up again (President). */
+router.post('/enrollments/:userId/remove', ...presidentChain, async (req, res) => {
+  if (!requireDatabase(res)) return;
+  try {
+    const out = await removeTesterEnrollment(req.params.userId);
+    res.json({ success: true, email: out.email });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Could not remove preview guest';
+    res.status(400).json({ error: msg });
   }
 });
 
