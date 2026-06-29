@@ -34,10 +34,13 @@ export function TryInvite() {
     }
   }, [isAuthenticated, navigate]);
 
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
+      setLoadError(null);
       const res = await api.getTesterInvite(token);
       if (cancelled) return;
       setLoading(false);
@@ -50,7 +53,7 @@ export function TryInvite() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, reloadKey]);
 
   const finishClaim = (d: {
     token: string;
@@ -113,8 +116,12 @@ export function TryInvite() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bog-paper text-sm text-gray-500">
-        Loading your preview invite…
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-bog-paper px-4 text-center">
+        <CubeLogoMark className="h-12 w-12 animate-pulse" />
+        <p className="text-sm font-medium text-bog-ink">Loading your preview invite…</p>
+        <p className="max-w-xs text-xs text-gray-500">
+          The first visit can take up to a minute while the preview server wakes up. Thanks for your patience.
+        </p>
       </div>
     );
   }
@@ -125,7 +132,14 @@ export function TryInvite() {
         <CubeLogoMark className="mb-6 h-14 w-14" />
         <h1 className="text-xl font-semibold text-bog-ink">Preview link not available</h1>
         <p className="mt-2 max-w-md text-center text-sm text-gray-500">{loadError}</p>
-        <Link to="/login" className="mt-6 text-sm font-medium text-bog-ink underline">
+        <button
+          type="button"
+          onClick={() => setReloadKey((k) => k + 1)}
+          className="mt-6 rounded-xl bg-black px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
+        >
+          Try again
+        </button>
+        <Link to="/login" className="mt-3 text-sm font-medium text-bog-ink underline">
           Go to sign in
         </Link>
       </div>

@@ -6,6 +6,8 @@ interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   error?: string;
+  /** True when the failure looks transient (server cold start, timeout, gateway error) and a retry may succeed. */
+  retryable?: boolean;
 }
 
 interface RequestOptions {
@@ -16,6 +18,14 @@ interface RequestOptions {
   skipAuth?: boolean;
   /** Safe retries / double-submit protection (SO, PO, etc.). */
   idempotencyKey?: string;
+  /** Abort the request after this many ms (free-tier API can cold-start ~30-60s). */
+  timeoutMs?: number;
+  /** Number of extra attempts for transient/cold-start failures (with backoff). */
+  retries?: number;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function getAuthBearerToken(): string | null {
@@ -58,34 +68,91 @@ class ApiClient {
       headers['Idempotency-Key'] = options.idempotencyKey.trim();
     }
 
-    try {
-      const response = await fetch(url, {
-        method,
-        headers,
-        body: options.body ? JSON.stringify(options.body) : undefined,
-      });
+    const maxAttempts = Math.max(1, (options.retries ?? 0) + 1);
+    let lastError: ApiResponse<T> = { success: false, error: 'Network error', retryable: true };
 
-      const text = await response.text();
-      const data = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const controller = options.timeoutMs ? new AbortController() : undefined;
+      const timer = controller ? setTimeout(() => controller.abort(), options.timeoutMs) : undefined;
 
-      if (!response.ok) {
+      try {
+        const response = await fetch(url, {
+          method,
+          headers,
+          body: options.body ? JSON.stringify(options.body) : undefined,
+          signal: controller?.signal,
+        });
+
+        const text = await response.text();
+        // The API may return a non-JSON body (e.g. a proxy/boot HTML page while the
+        // free-tier server is waking up). Parse defensively instead of throwing.
+        let data: Record<string, unknown> = {};
+        let parsed = true;
+        if (text) {
+          try {
+            data = JSON.parse(text) as Record<string, unknown>;
+          } catch {
+            parsed = false;
+          }
+        }
+
+        if (!response.ok) {
+          const transient = response.status >= 500 || response.status === 408 || response.status === 429;
+          lastError = {
+            success: false,
+            error: parsed
+              ? String(data.error ?? `HTTP Error: ${response.status}`)
+              : `The server is starting up. Please try again in a moment. (HTTP ${response.status})`,
+            retryable: transient || !parsed,
+          };
+          if (lastError.retryable && attempt < maxAttempts) {
+            await sleep(Math.min(1000 * 2 ** (attempt - 1), 8000));
+            continue;
+          }
+          return lastError;
+        }
+
+        if (!parsed) {
+          // 2xx but unparseable body — treat as a transient gateway/boot response.
+          lastError = {
+            success: false,
+            error: 'The server is starting up. Please try again in a moment.',
+            retryable: true,
+          };
+          if (attempt < maxAttempts) {
+            await sleep(Math.min(1000 * 2 ** (attempt - 1), 8000));
+            continue;
+          }
+          return lastError;
+        }
+
         return {
-          success: false,
-          error: String(data.error ?? `HTTP Error: ${response.status}`),
+          success: true,
+          data: (data.data ?? data) as T,
         };
+      } catch (error) {
+        const aborted = error instanceof DOMException && error.name === 'AbortError';
+        console.error('API Error:', error);
+        lastError = {
+          success: false,
+          error: aborted
+            ? 'The server is taking longer than expected to respond. Please try again.'
+            : error instanceof Error
+              ? error.message
+              : 'Network error',
+          retryable: true,
+        };
+        if (attempt < maxAttempts) {
+          await sleep(Math.min(1000 * 2 ** (attempt - 1), 8000));
+          continue;
+        }
+        return lastError;
+      } finally {
+        if (timer) clearTimeout(timer);
       }
-
-      return {
-        success: true,
-        data: (data.data ?? data) as T,
-      };
-    } catch (error) {
-      console.error('API Error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Network error',
-      };
     }
+
+    return lastError;
   }
 
   async getHealth() {
@@ -974,7 +1041,11 @@ class ApiClient {
       isActive: boolean;
       enrollmentCount: number;
       inviteUrl: string;
-    }>(`/tester-invites/${encodeURIComponent(token)}`, { skipAuth: true });
+    }>(`/tester-invites/${encodeURIComponent(token)}`, {
+      skipAuth: true,
+      timeoutMs: 30000,
+      retries: 4,
+    });
   }
 
   async claimTesterInvite(
@@ -998,6 +1069,8 @@ class ApiClient {
       method: 'POST',
       body,
       skipAuth: true,
+      timeoutMs: 45000,
+      retries: 2,
     });
   }
 
