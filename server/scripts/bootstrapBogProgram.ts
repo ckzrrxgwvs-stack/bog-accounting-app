@@ -2,12 +2,12 @@
  * One-shot bootstrap: company + COA + executive demo users (API login).
  * Usage: pnpm run db:bootstrap
  */
-import { bootstrapUsersEnabled } from '../lib/bootstrapUsers';
+import { config } from 'dotenv';
 import bcrypt from 'bcryptjs';
 import { UserRoleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 import { bootstrapUsersEnabled } from '../lib/bootstrapUsers';
+import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
 
 config({ override: true });
 
@@ -47,32 +47,32 @@ async function main() {
 
   if (bootstrapUsersEnabled()) {
     for (const u of USERS) {
-    const existing = await prisma.user.findUnique({ where: { email: u.email } });
-    if (existing) {
-      if (process.env.BOG_BOOTSTRAP_RESET === '1') {
-        await prisma.user.update({
-          where: { id: existing.id },
-          data: { passwordHash: hash, companyId: company.id, isActive: true, mfaEnabled: false },
-        });
-        console.log(`  reset password ${u.email}`);
-      } else {
-        console.log(`  skip existing ${u.email}`);
+      const existing = await prisma.user.findUnique({ where: { email: u.email } });
+      if (existing) {
+        if (process.env.BOG_BOOTSTRAP_RESET === '1') {
+          await prisma.user.update({
+            where: { id: existing.id },
+            data: { passwordHash: hash, companyId: company.id, isActive: true, mfaEnabled: false },
+          });
+          console.log(`  reset password ${u.email}`);
+        } else {
+          console.log(`  skip existing ${u.email}`);
+        }
+        continue;
       }
-      continue;
-    }
-    await prisma.user.create({
-      data: {
-        email: u.email,
-        passwordHash: hash,
-        firstName: u.firstName,
-        lastName: u.lastName,
-        role: u.role,
-        companyId: company.id,
-        isActive: true,
-        mfaEnabled: false,
-      },
-    });
-    console.log(`  created user ${u.email} (${u.role})`);
+      await prisma.user.create({
+        data: {
+          email: u.email,
+          passwordHash: hash,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          role: u.role,
+          companyId: company.id,
+          isActive: true,
+          mfaEnabled: false,
+        },
+      });
+      console.log(`  created user ${u.email} (${u.role})`);
     }
   } else {
     console.log('  skip demo users (set BOG_BOOTSTRAP_USERS=1 for admin@company.com / demo123)');

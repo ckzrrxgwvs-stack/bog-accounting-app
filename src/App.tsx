@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { MainLayout } from './components/layout/MainLayout';
 import { Dashboard } from './pages/Dashboard';
 import { Ledger } from './pages/Ledger';
+import { JournalEntryComposer } from './pages/JournalEntryComposer';
 import { ChartOfAccounts } from './pages/ChartOfAccounts';
 import { OpeningBalances } from './pages/OpeningBalances';
 import { PeriodClose } from './pages/PeriodClose';
@@ -78,7 +79,7 @@ function App() {
           <Route path="master/customers" element={<Customers />} />
           <Route path="master/vendors" element={<Vendors />} />
           <Route path="ledger" element={<Ledger />} />
-          <Route path="ledger/new" element={<Ledger />} />
+          <Route path="ledger/new" element={<JournalEntryComposer />} />
           <Route path="ap" element={<AccountsPayable />} />
           <Route path="ap/new" element={<AccountsPayable />} />
           <Route path="ar" element={<AccountsReceivable />} />

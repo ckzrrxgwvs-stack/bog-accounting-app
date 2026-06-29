@@ -104,7 +104,8 @@ See `docs/SHOPIFY_CONNECTOR.md`.
 | P1000 auth failed | Wrong password in URI |
 | Vercel still Demo | `VITE_API_URL` not set or didn’t redeploy |
 | CORS error in browser | `FRONTEND_URL` on Render = `https://bog-accounting-v5.vercel.app` |
-| Login fails | Use API login `admin@company.com` / `demo123` after first deploy |
+| Login fails | Use your **President email** on production (owner setup). Local only: `admin@company.com` / `demo123` after `pnpm run db:bootstrap:dev` |
+| New JE does nothing | Redeploy Vercel after 2026-06-29 release — see `docs/DEPLOY_2026-06-29.md` |
 
 ---
 

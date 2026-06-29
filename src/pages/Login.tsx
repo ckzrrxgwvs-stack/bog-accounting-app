@@ -34,8 +34,26 @@ export function Login() {
   useEffect(() => {
     void (async () => {
       const res = await api.getOwnerSetupStatus();
-      if (res.success && res.data?.needsOwnerSetup) {
-        setNeedsOwnerSetup(true);
+      if (!res.success || !res.data) return;
+
+      const data = res.data as {
+        needsOwnerSetup?: boolean;
+        signInAvailable?: boolean;
+        presidentLoginHint?: string | null;
+        bootstrapUsersAvailable?: boolean;
+      };
+
+      if (data.needsOwnerSetup != null) {
+        setNeedsOwnerSetup(data.needsOwnerSetup);
+      }
+
+      // Local dev: skip first-run wizard when a President can already sign in
+      if (!isProductionApi && (data.signInAvailable || data.bootstrapUsersAvailable)) {
+        setShowSignIn(true);
+      }
+
+      if (data.presidentLoginHint) {
+        setEmail((prev) => prev || data.presidentLoginHint!);
       }
     })();
   }, []);
@@ -314,7 +332,20 @@ export function Login() {
                 <div className="mb-6 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-100">
                   <p className="font-semibold text-emerald-900 text-sm">Local program</p>
                   <p className="text-xs text-emerald-700 mt-1">
-                    Run <code className="font-mono">pnpm run go-live:local</code> or sign in with your organization credentials.
+                    Sign in with your President credentials. Run{' '}
+                    <code className="font-mono">pnpm run dev:program</code> with Docker Postgres for live books.
+                  </p>
+                </div>
+              )}
+
+              {!isProductionApi && needsOwnerSetup && (
+                <div className="mb-6 rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50 to-teal-50 p-4">
+                  <p className="text-sm font-semibold text-emerald-900">President sign-in (local)</p>
+                  <p className="mt-1 text-xs text-emerald-800">
+                    Use your existing credentials below. Bootstrap dev login:{' '}
+                    <code className="font-mono">admin@company.com</code> /{' '}
+                    <code className="font-mono">demo123</code> if you ran{' '}
+                    <code className="font-mono">pnpm run db:bootstrap:dev</code>.
                   </p>
                 </div>
               )}

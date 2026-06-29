@@ -18,6 +18,10 @@ export type OwnerSetupStatus = {
   ownerSetupCompleted: boolean;
   bootstrapUsersAvailable: boolean;
   presidentEmail: string | null;
+  /** True when an active PRESIDENT can sign in (custom or bootstrap). */
+  signInAvailable: boolean;
+  /** Email hint for login form — custom President or local bootstrap admin. */
+  presidentLoginHint: string | null;
   options: {
     availableNow: Array<{ id: string; label: string; description: string }>;
     availableLater: Array<{ id: string; label: string; description: string }>;
@@ -34,16 +38,24 @@ export async function getOwnerSetupStatus(): Promise<OwnerSetupStatus> {
   const customPresident = users.find(
     (u) => u.role === UserRoleType.PRESIDENT && !isBootstrapUserEmail(u.email)
   );
+  const bootstrapPresident = users.find(
+    (u) => u.role === UserRoleType.PRESIDENT && isBootstrapUserEmail(u.email)
+  );
   const ownerSetupCompleted = Boolean(company.ownerSetupCompletedAt) || Boolean(customPresident);
   const needsOwnerSetup = !ownerSetupCompleted;
 
   const bootstrapUsersAvailable = users.some((u) => isBootstrapUserEmail(u.email));
+  const signInAvailable = Boolean(customPresident || bootstrapPresident);
+  const presidentLoginHint =
+    customPresident?.email ?? (bootstrapPresident ? bootstrapPresident.email : null);
 
   return {
     needsOwnerSetup,
     ownerSetupCompleted,
     bootstrapUsersAvailable,
     presidentEmail: customPresident?.email ?? null,
+    signInAvailable,
+    presidentLoginHint,
     options: {
       availableNow: [
         {

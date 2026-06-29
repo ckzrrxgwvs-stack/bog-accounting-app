@@ -10,6 +10,7 @@
     "start": "tsx server/index.ts",
     "db:push": "prisma db push",
     "db:bootstrap": "tsx server/scripts/bootstrapBogProgram.ts",
+    "db:bootstrap:dev": "BOG_BOOTSTRAP_USERS=1 BOG_BOOTSTRAP_RESET=1 tsx server/scripts/bootstrapBogProgram.ts",
     "go-live:local": "bash scripts/bog-go-live.sh",
     "post:draft-journals": "tsx server/scripts/postAllDraftJournals.ts",
     "seed:autonomy-backlog": "tsx server/scripts/seedAutonomyBacklog.ts",
