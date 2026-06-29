@@ -1,0 +1,16 @@
+{
+  "name": "Pi Academy · CPA Practice",
+  "short_name": "Pi Academy",
+  "description": "Learn the discipline behind the ledger. A practice room for accountants — pick your competencies and build real skill, hands-on.",
+  "start_url": "/academy",
+  "scope": "/academy",
+  "display": "standalone",
+  "background_color": "#0c0c0d",
+  "theme_color": "#e8990f",
+  "icons": [
+    { "src": "/academy-icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/academy-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/academy-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/academy-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

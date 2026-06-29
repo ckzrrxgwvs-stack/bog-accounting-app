@@ -1,0 +1,16 @@
+{
+  "name": "BOG-Pi · Books On The Go",
+  "short_name": "BOG-Pi",
+  "description": "Books On The Go — ledger precision (π). Accounting workspace with AI controller assistance.",
+  "start_url": "/login",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0c0c0d",
+  "theme_color": "#0c0c0d",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/bog-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/bog-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/bog-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

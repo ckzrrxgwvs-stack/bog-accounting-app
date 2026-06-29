@@ -9,6 +9,7 @@
 import { ListChecks, FlaskConical, Sparkles, Trophy, Compass, Check, Lock, ArrowRight } from 'lucide-react';
 import { ModuleWorkspace } from '@/components/layout/ModuleWorkspace';
 import { PiAcademyMarkGlow, ACADEMY_AMBER } from '@/components/PiAcademyLogo';
+import { useAcademyAppIcon } from '@/hooks/useAcademyAppIcon';
 
 const AMBER = ACADEMY_AMBER;
 const AMBER_SOFT = 'hsl(38 90% 48% / 0.10)';
@@ -53,6 +54,8 @@ const MEMBER_PERKS = [
 ];
 
 export function Academy() {
+  useAcademyAppIcon();
+
   return (
     <ModuleWorkspace
       label="Academy"
