@@ -1,6 +1,6 @@
 # Per-table cell styles — follow-on scope
 
-**Status:** Scoped (not built). Owner request — Excel-style **Good / Bad / Neutral** (and related) cell styles applied **per cell, row, or column** inside **Data Studio** and the **General Ledger**, not just workspace-wide theme/format toggles.
+**Status:** M1–M2 shipped (client overlay). M3+ scoped below.
 
 **Related (already shipped):** `Settings → Display & themes` — Office themes, layout templates, graphic styles, grid row/column lines, workspace align/B/U, customizable sidebar menu (`cell-01` precursor).
 
@@ -187,4 +187,6 @@ Each milestone: `@technical_lead` architecture check → build → `@qa` → Hum
 ## Log
 
 - `cell-01` (2026-06-29) ✅ Follow-on scoped from owner request (Good/Bad/Neutral per-table). Precursor: workspace themes + graphic styles + grid/menu customization shipped.
-- `cell-02` (2026-06-29) ✅ **M1 shipped:** Data Studio flat grid — `cellStyles.ts`, `useCellStyles`, `CellStyleGallery` on Sheet view ribbon; Good/Bad/Neutral/Input/Total/Heading/Note; row/cell apply; localStorage per dataset. **Next:** M1.1 pivot cells + M2 Ledger overlay.
+- `cell-02` (2026-06-29) ✅ **M1 shipped:** Data Studio flat grid — `cellStyles.ts`, `useCellStyles`, `CellStyleGallery` on Sheet view ribbon; Good/Bad/Neutral/Input/Total/Heading/Note; row/cell apply; localStorage per dataset.
+- `cell-03` (2026-06-29) ✅ **M1.1 shipped:** Data Studio pivot matrix — separate `data-studio-pivot` scope; click row/cell apply; **Good/Bad extremes** toggle auto-marks column max/min (manual styles win); ribbon label updated; reset clears both flat + pivot stores.
+- `cell-04` (2026-06-29) ✅ **M2 shipped:** Ledger journal table — `CellStyleGallery` toolbar; localStorage keyed by `ledger-entries:{year}-{period}`; row/cell apply on entry columns. **Next:** M3 conditional rules.

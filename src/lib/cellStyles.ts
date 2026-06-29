@@ -95,3 +95,8 @@ export function cellStyleClass(id: BogCellStyleId): string {
 export function cellStyleKey(rowKey: string, colKey?: string): string {
   return colKey ? `${rowKey}|${colKey}` : rowKey;
 }
+
+/** Manual cell class wins over optional auto Good/Bad hint. */
+export function mergeCellClasses(manualClass: string, autoClass?: string): string {
+  return manualClass || autoClass || '';
+}

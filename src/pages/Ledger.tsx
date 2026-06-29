@@ -15,6 +15,9 @@ import {
 } from '@/components/layout/ModuleWorkspace';
 import { api } from '@/services/api';
 import { formatMoney, useCompanyFx } from '@/hooks/useCompanyFx';
+import { CellStyleGallery } from '@/components/dataStudio/CellStyleGallery';
+import { useCellStyles } from '@/hooks/useCellStyles';
+import { cn } from '@/lib/utils';
 
 interface JournalEntryRow {
   id: string;
@@ -37,6 +40,9 @@ export function Ledger() {
   const [entries, setEntries] = useState<JournalEntryRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const ledgerScope = `ledger-entries:${selectedYear}-${selectedPeriod}`;
+  const cellStyles = useCellStyles(ledgerScope);
 
   const periodRange = useMemo(() => {
     const month = Number(selectedPeriod);
@@ -200,6 +206,23 @@ export function Ledger() {
         )}
       </div>
 
+      <div className="bog-statement-card mb-4 border border-bog-rule p-4">
+        <p className="mb-3 text-xs text-zinc-500">
+          Mark entries for review — styles save in this browser for{' '}
+          <strong>
+            {selectedPeriod}/{selectedYear}
+          </strong>
+          . Click a row or cell, then pick Good, Bad, Neutral, etc.
+        </p>
+        <CellStyleGallery
+          applyTarget={cellStyles.applyTarget}
+          onApplyTargetChange={cellStyles.setApplyTarget}
+          onPickStyle={cellStyles.applyToSelection}
+          onClearAll={cellStyles.clearAll}
+          hasSelection={cellStyles.hasSelection}
+        />
+      </div>
+
       <div className={ledgerTableShell}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[880px]">
@@ -228,35 +251,120 @@ export function Ledger() {
                   </td>
                 </tr>
               ) : (
-                entries.map((entry) => (
-                  <tr key={entry.id} className={ledgerRow}>
-                    <td className="px-4 py-3 font-figures text-sm font-semibold text-bog-ink">{entry.entryNumber}</td>
-                    <td className="px-4 py-3 font-figures text-sm text-zinc-600">{entry.date}</td>
-                    <td className="px-4 py-3 text-sm text-bog-ink">{entry.description}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${statusStyles[entry.status] ?? 'bg-zinc-100 text-zinc-700'}`}
+                entries.map((entry) => {
+                  const rowKey = entry.id;
+                  return (
+                    <tr
+                      key={entry.id}
+                      className={cn(
+                        ledgerRow,
+                        cellStyles.classForCell(rowKey),
+                        cellStyles.isSelected(rowKey) &&
+                          !cellStyles.selection?.colKey &&
+                          'ring-1 ring-inset ring-[hsl(var(--bog-accent))]/40'
+                      )}
+                      onClick={() => cellStyles.setSelection({ rowKey })}
+                    >
+                      <td
+                        className={cn(
+                          'cursor-cell px-4 py-3 font-figures text-sm font-semibold text-bog-ink',
+                          cellStyles.classForCell(rowKey, 'entryNumber'),
+                          cellStyles.isSelected(rowKey, 'entryNumber') && 'bog-cell-selected'
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cellStyles.setSelection({ rowKey, colKey: 'entryNumber' });
+                        }}
                       >
-                        {entry.status}
-                      </span>
-                    </td>
-                    <td className={`px-4 py-3 text-right ${ledgerTdNum}`}>{formatCurrency(entry.totalDebit)}</td>
-                    <td className={`px-4 py-3 text-right ${ledgerTdNum}`}>{formatCurrency(entry.totalCredit)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-1">
-                        <button type="button" className="rounded-md p-1.5 text-zinc-400 hover:bg-bog-sheet hover:text-bog-ink" title="View">
-                          <Eye size={16} />
-                        </button>
-                        <button type="button" className="rounded-md p-1.5 text-zinc-400 hover:bg-bog-sheet hover:text-bog-ink" title="Edit">
-                          <Edit size={16} />
-                        </button>
-                        <button type="button" className="rounded-md p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600" title="Delete">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                        {entry.entryNumber}
+                      </td>
+                      <td
+                        className={cn(
+                          'cursor-cell px-4 py-3 font-figures text-sm text-zinc-600',
+                          cellStyles.classForCell(rowKey, 'date'),
+                          cellStyles.isSelected(rowKey, 'date') && 'bog-cell-selected'
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cellStyles.setSelection({ rowKey, colKey: 'date' });
+                        }}
+                      >
+                        {entry.date}
+                      </td>
+                      <td
+                        className={cn(
+                          'cursor-cell px-4 py-3 text-sm text-bog-ink',
+                          cellStyles.classForCell(rowKey, 'description'),
+                          cellStyles.isSelected(rowKey, 'description') && 'bog-cell-selected'
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cellStyles.setSelection({ rowKey, colKey: 'description' });
+                        }}
+                      >
+                        {entry.description}
+                      </td>
+                      <td
+                        className={cn(
+                          'cursor-cell px-4 py-3',
+                          cellStyles.classForCell(rowKey, 'status'),
+                          cellStyles.isSelected(rowKey, 'status') && 'bog-cell-selected'
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cellStyles.setSelection({ rowKey, colKey: 'status' });
+                        }}
+                      >
+                        <span
+                          className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${statusStyles[entry.status] ?? 'bg-zinc-100 text-zinc-700'}`}
+                        >
+                          {entry.status}
+                        </span>
+                      </td>
+                      <td
+                        className={cn(
+                          'cursor-cell px-4 py-3 text-right',
+                          ledgerTdNum,
+                          cellStyles.classForCell(rowKey, 'debit'),
+                          cellStyles.isSelected(rowKey, 'debit') && 'bog-cell-selected'
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cellStyles.setSelection({ rowKey, colKey: 'debit' });
+                        }}
+                      >
+                        {formatCurrency(entry.totalDebit)}
+                      </td>
+                      <td
+                        className={cn(
+                          'cursor-cell px-4 py-3 text-right',
+                          ledgerTdNum,
+                          cellStyles.classForCell(rowKey, 'credit'),
+                          cellStyles.isSelected(rowKey, 'credit') && 'bog-cell-selected'
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cellStyles.setSelection({ rowKey, colKey: 'credit' });
+                        }}
+                      >
+                        {formatCurrency(entry.totalCredit)}
+                      </td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1">
+                          <button type="button" className="rounded-md p-1.5 text-zinc-400 hover:bg-bog-sheet hover:text-bog-ink" title="View">
+                            <Eye size={16} />
+                          </button>
+                          <button type="button" className="rounded-md p-1.5 text-zinc-400 hover:bg-bog-sheet hover:text-bog-ink" title="Edit">
+                            <Edit size={16} />
+                          </button>
+                          <button type="button" className="rounded-md p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600" title="Delete">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

@@ -1,6 +1,5 @@
 /**
- * Data Studio — analysis workspace with ribbon ergonomics and BOG-owned tools
- * (cross-tab summaries, filters, sorting, charts — not a spreadsheet UI clone).
+ * Data Studio — M1.1 pivot cell styles + Good/Bad extremes; flat grid styles (M1).
  */
 import React, { useMemo, useState, useCallback } from 'react';
 import {
@@ -24,6 +23,7 @@ import {
 import { DataStudioRibbon, type RibbonTabId } from '@/components/dataStudio/DataStudioRibbon';
 import { CellStyleGallery } from '@/components/dataStudio/CellStyleGallery';
 import { useCellStyles } from '@/hooks/useCellStyles';
+import { cellStyleClass, mergeCellClasses } from '@/lib/cellStyles';
 import { cn } from '@/lib/utils';
 import {
   SAMPLE_DATASETS,
@@ -37,6 +37,8 @@ import {
   sortRowsByColumn,
   type AggregationKind,
 } from '@/lib/dataStudio/pivotEngine';
+
+const PIVOT_TOTALS_ROW = '__col_totals__';
 
 export function DataStudio() {
   const [dataset, setDataset] = useState<DatasetDef>(SAMPLE_DATASETS[0]);
@@ -63,7 +65,10 @@ export function DataStudio() {
   const [filters, setFilters] = useState<Record<string, string[]>>({});
 
   const flatTableScope = `${dataset.id}:data-studio-flat`;
-  const cellStyles = useCellStyles(flatTableScope);
+  const pivotTableScope = `${dataset.id}:data-studio-pivot`;
+  const flatCellStyles = useCellStyles(flatTableScope);
+  const pivotCellStyles = useCellStyles(pivotTableScope);
+  const cellStyles = crossTabMode ? pivotCellStyles : flatCellStyles;
 
   React.useEffect(() => {
     const tc = textCols.map((c) => c.key);
@@ -123,9 +128,16 @@ export function DataStudio() {
     setHighlightExtremes(false);
     setFilters({});
     setRibbonTab('start');
-    cellStyles.clearAll();
-    cellStyles.setSelection(null);
-  }, [cellStyles.clearAll, cellStyles.setSelection]);
+    flatCellStyles.clearAll();
+    flatCellStyles.setSelection(null);
+    pivotCellStyles.clearAll();
+    pivotCellStyles.setSelection(null);
+  }, [
+    flatCellStyles.clearAll,
+    flatCellStyles.setSelection,
+    pivotCellStyles.clearAll,
+    pivotCellStyles.setSelection,
+  ]);
 
   const maxPerCol = useMemo(() => {
     if (!pivot) return [];
@@ -133,6 +145,24 @@ export function DataStudio() {
       Math.max(...pivot.cells.map((row) => row[ci] ?? 0), 0)
     );
   }, [pivot]);
+
+  const minPerCol = useMemo(() => {
+    if (!pivot) return [];
+    return pivot.columnKeys.map((_, ci) =>
+      Math.min(...pivot.cells.map((row) => row[ci] ?? 0))
+    );
+  }, [pivot]);
+
+  const pivotAutoClass = useCallback(
+    (rowKey: string, colKey: string, value: number, ci: number) => {
+      if (!highlightExtremes || maxPerCol[ci] === minPerCol[ci]) return '';
+      if (pivotCellStyles.classForCell(rowKey, colKey)) return '';
+      if (value === maxPerCol[ci]) return cellStyleClass('good');
+      if (value === minPerCol[ci]) return cellStyleClass('bad');
+      return '';
+    },
+    [highlightExtremes, maxPerCol, minPerCol, pivotCellStyles]
+  );
 
   const toggleFilterValue = (field: string, value: string) => {
     setFilters((prev) => {
@@ -183,7 +213,6 @@ export function DataStudio() {
                 onPickStyle={cellStyles.applyToSelection}
                 onClearAll={cellStyles.clearAll}
                 hasSelection={cellStyles.hasSelection}
-                disabled={crossTabMode}
               />
             }
           />
@@ -215,10 +244,9 @@ export function DataStudio() {
               <ul className="mt-2 list-inside list-disc space-y-1">
                 <li>Cross-tab summaries (pivot-class)</li>
                 <li>Column filters (multi-select)</li>
-                <li>Sort facts by column</li>
-                <li>Column/bar chart from row totals</li>
+                <li>Cell styles — Good, Bad, Neutral (flat + pivot)</li>
+                <li>Good/Bad auto extremes on pivot columns</li>
                 <li>CSV export for sharing</li>
-                <li>Pin header row · highlight column peaks</li>
               </ul>
             </div>
           </div>
@@ -287,8 +315,8 @@ export function DataStudio() {
                   </label>
                 </div>
                 <p className="mt-3 text-xs text-zinc-500">
-                  <strong>Cell styles:</strong> open the <strong>Sheet view</strong> ribbon tab → pick Good, Bad,
-                  Neutral, etc. Click a row or cell first, then apply.
+                  <strong>Cell styles:</strong> Sheet view ribbon → click a row or cell, then pick Good, Bad, Neutral,
+                  etc.
                 </p>
                 <div className={`mt-4 overflow-auto ${ledgerTableShell}`}>
                   <table className="w-full min-w-[640px] text-sm">
@@ -309,23 +337,25 @@ export function DataStudio() {
                             key={i}
                             className={cn(
                               ledgerRow,
-                              cellStyles.classForCell(rowKey),
-                              cellStyles.isSelected(rowKey) && !cellStyles.selection?.colKey && 'ring-1 ring-inset ring-[hsl(var(--bog-accent))]/40'
+                              flatCellStyles.classForCell(rowKey),
+                              flatCellStyles.isSelected(rowKey) &&
+                                !flatCellStyles.selection?.colKey &&
+                                'ring-1 ring-inset ring-[hsl(var(--bog-accent))]/40'
                             )}
-                            onClick={() => cellStyles.setSelection({ rowKey })}
+                            onClick={() => flatCellStyles.setSelection({ rowKey })}
                           >
                             {dataset.columns.map((c) => (
                               <td
                                 key={c.key}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  cellStyles.setSelection({ rowKey, colKey: c.key });
+                                  flatCellStyles.setSelection({ rowKey, colKey: c.key });
                                 }}
                                 className={cn(
-                                  'px-4 py-2 cursor-cell',
+                                  'cursor-cell px-4 py-2',
                                   c.type === 'number' ? `text-right ${ledgerTdNum}` : '',
-                                  cellStyles.classForCell(rowKey, c.key),
-                                  cellStyles.isSelected(rowKey, c.key) && 'bog-cell-selected'
+                                  flatCellStyles.classForCell(rowKey, c.key),
+                                  flatCellStyles.isSelected(rowKey, c.key) && 'bog-cell-selected'
                                 )}
                               >
                                 {String(r[c.key] ?? '')}
@@ -340,12 +370,6 @@ export function DataStudio() {
               </section>
             )}
 
-            {crossTabMode && (
-              <p className="rounded-lg border border-bog-rule bg-bog-sheet/50 px-4 py-2 text-xs text-zinc-600">
-                Turn off <strong>Cross-tab</strong> (Summarize tab) to format individual fact rows with cell styles.
-              </p>
-            )}
-
             {crossTabMode && pivot && filteredRows.length === 0 && (
               <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 No rows match the current filters. Clear chip selections or pick another dataset.
@@ -356,6 +380,10 @@ export function DataStudio() {
               <>
                 <section className="bog-statement-card p-4">
                   <h3 className="text-sm font-semibold text-bog-ink">Cross-tab summary</h3>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Sheet view → cell styles on pivot cells. Toggle <strong>Good/Bad extremes</strong> to auto-mark
+                    column high (Good) and low (Bad); manual styles always win.
+                  </p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <label className="text-xs text-zinc-500">
                       Rows
@@ -429,36 +457,112 @@ export function DataStudio() {
                         </tr>
                       </thead>
                       <tbody>
-                        {pivot.rowKeys.map((rk, ri) => (
-                          <tr key={rk} className={ledgerRow}>
-                            <td className="border-b border-bog-rule px-3 py-2 font-medium text-bog-ink">{rk}</td>
-                            {pivot.columnKeys.map((_, ci) => {
-                              const v = pivot.cells[ri][ci];
-                              const isMax = highlightExtremes && maxPerCol[ci] > 0 && v === maxPerCol[ci];
-                              return (
-                                <td
-                                  key={ci}
-                                  className={`border-b border-bog-rule px-3 py-2 text-right font-figures ${ledgerTdNum} ${
-                                    isMax ? 'bg-emerald-50 font-semibold text-emerald-900' : ''
-                                  }`}
-                                >
-                                  {v.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                                </td>
-                              );
-                            })}
-                            <td className="border-b border-bog-rule bg-bog-sheet/60 px-3 py-2 text-right font-figures font-semibold">
-                              {pivot.rowTotals[ri].toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        ))}
-                        <tr className="bg-zinc-100 font-semibold">
-                          <td className="border-t-2 border-bog-rule px-3 py-2 text-bog-ink">Column totals</td>
-                          {pivot.columnTotals.map((ct, ci) => (
-                            <td key={ci} className={`border-t-2 border-bog-rule px-3 py-2 text-right font-figures ${ledgerTdNum}`}>
-                              {ct.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                            </td>
-                          ))}
-                          <td className="border-t-2 border-bog-rule px-3 py-2 text-right font-figures text-[hsl(var(--bog-accent))]">
+                        {pivot.rowKeys.map((rk, ri) => {
+                          const rowKey = rk;
+                          return (
+                            <tr
+                              key={rk}
+                              className={cn(
+                                ledgerRow,
+                                pivotCellStyles.classForCell(rowKey),
+                                pivotCellStyles.isSelected(rowKey) &&
+                                  !pivotCellStyles.selection?.colKey &&
+                                  'ring-1 ring-inset ring-[hsl(var(--bog-accent))]/40'
+                              )}
+                              onClick={() => pivotCellStyles.setSelection({ rowKey })}
+                            >
+                              <td
+                                className={cn(
+                                  'cursor-cell border-b border-bog-rule px-3 py-2 font-medium text-bog-ink',
+                                  pivotCellStyles.classForCell(rowKey, '__label__'),
+                                  pivotCellStyles.isSelected(rowKey, '__label__') && 'bog-cell-selected'
+                                )}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  pivotCellStyles.setSelection({ rowKey, colKey: '__label__' });
+                                }}
+                              >
+                                {rk}
+                              </td>
+                              {pivot.columnKeys.map((colKey, ci) => {
+                                const v = pivot.cells[ri][ci];
+                                const manual = pivotCellStyles.classForCell(rowKey, colKey);
+                                const auto = pivotAutoClass(rowKey, colKey, v, ci);
+                                return (
+                                  <td
+                                    key={colKey}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      pivotCellStyles.setSelection({ rowKey, colKey });
+                                    }}
+                                    className={cn(
+                                      'cursor-cell border-b border-bog-rule px-3 py-2 text-right font-figures',
+                                      ledgerTdNum,
+                                      mergeCellClasses(manual, auto),
+                                      pivotCellStyles.isSelected(rowKey, colKey) && 'bog-cell-selected'
+                                    )}
+                                  >
+                                    {v.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                  </td>
+                                );
+                              })}
+                              <td
+                                className={cn(
+                                  'cursor-cell border-b border-bog-rule bg-bog-sheet/60 px-3 py-2 text-right font-figures font-semibold',
+                                  pivotCellStyles.classForCell(rowKey, '__row_total__'),
+                                  pivotCellStyles.isSelected(rowKey, '__row_total__') && 'bog-cell-selected'
+                                )}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  pivotCellStyles.setSelection({ rowKey, colKey: '__row_total__' });
+                                }}
+                              >
+                                {pivot.rowTotals[ri].toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        <tr
+                          className={cn('font-semibold', pivotCellStyles.classForCell(PIVOT_TOTALS_ROW))}
+                          onClick={() => pivotCellStyles.setSelection({ rowKey: PIVOT_TOTALS_ROW })}
+                        >
+                          <td
+                            className={cn(
+                              'cursor-cell border-t-2 border-bog-rule px-3 py-2 text-bog-ink',
+                              mergeCellClasses(
+                                pivotCellStyles.classForCell(PIVOT_TOTALS_ROW, '__label__'),
+                                cellStyleClass('total')
+                              )
+                            )}
+                          >
+                            Column totals
+                          </td>
+                          {pivot.columnTotals.map((ct, ci) => {
+                            const colKey = pivot.columnKeys[ci];
+                            return (
+                              <td
+                                key={colKey}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  pivotCellStyles.setSelection({ rowKey: PIVOT_TOTALS_ROW, colKey });
+                                }}
+                                className={cn(
+                                  'cursor-cell border-t-2 border-bog-rule px-3 py-2 text-right font-figures',
+                                  ledgerTdNum,
+                                  pivotCellStyles.classForCell(PIVOT_TOTALS_ROW, colKey),
+                                  pivotCellStyles.isSelected(PIVOT_TOTALS_ROW, colKey) && 'bog-cell-selected'
+                                )}
+                              >
+                                {ct.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              </td>
+                            );
+                          })}
+                          <td
+                            className={cn(
+                              'cursor-cell border-t-2 border-bog-rule px-3 py-2 text-right font-figures text-[hsl(var(--bog-accent))]',
+                              pivotCellStyles.classForCell(PIVOT_TOTALS_ROW, '__grand_total__')
+                            )}
+                          >
                             {pivot.grandTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                           </td>
                         </tr>

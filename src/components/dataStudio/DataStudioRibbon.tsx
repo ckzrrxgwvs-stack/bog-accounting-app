@@ -122,7 +122,7 @@ export function DataStudioRibbon({
               />
               <RibbonBtn
                 icon={<Highlighter size={16} />}
-                label={highlightExtremes ? 'Heat hints on' : 'Highlight extremes'}
+                label={highlightExtremes ? 'Good/Bad extremes on' : 'Good/Bad extremes'}
                 onClick={onToggleHighlight}
                 active={highlightExtremes}
               />
