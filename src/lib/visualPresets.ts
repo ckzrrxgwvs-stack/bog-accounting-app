@@ -126,6 +126,39 @@ export const BOG_GRAPHIC_STYLES: BogGraphicStyle[] = [
   },
 ];
 
+export type BogGridSize = 'fine' | 'standard' | 'wide';
+export type BogTextAlign = 'left' | 'center' | 'right';
+
+export type BogWorkspaceGrid = {
+  showRowLines: boolean;
+  showColumnLines: boolean;
+  cellSize: BogGridSize;
+};
+
+export type BogTextFormat = {
+  align: BogTextAlign;
+  bold: boolean;
+  underline: boolean;
+};
+
+export const DEFAULT_WORKSPACE_GRID: BogWorkspaceGrid = {
+  showRowLines: true,
+  showColumnLines: true,
+  cellSize: 'standard',
+};
+
+export const DEFAULT_TEXT_FORMAT: BogTextFormat = {
+  align: 'left',
+  bold: false,
+  underline: false,
+};
+
+export const BOG_GRID_SIZES: { id: BogGridSize; label: string; px: number }[] = [
+  { id: 'fine', label: 'Fine (16px)', px: 16 },
+  { id: 'standard', label: 'Standard (24px)', px: 24 },
+  { id: 'wide', label: 'Wide (32px)', px: 32 },
+];
+
 export const DEFAULT_THEME_ID = 'ledger-classic';
 export const DEFAULT_LAYOUT_ID = 'standard';
 export const DEFAULT_GRAPHIC_STYLE_ID = 'classic-rules';

@@ -33,6 +33,8 @@ import {
 } from 'lucide-react';
 import { useComfortMode } from '@/context/ComfortModeContext';
 import { VisualPresetGallery } from '@/components/settings/VisualPresetGallery';
+import { WorkspaceGridPanel } from '@/components/settings/WorkspaceGridPanel';
+import { NavMenuCustomizer } from '@/components/settings/NavMenuCustomizer';
 
 interface TabItem {
   id: string;
@@ -1648,6 +1650,14 @@ export function Settings() {
 
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <VisualPresetGallery />
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <WorkspaceGridPanel />
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <NavMenuCustomizer />
       </div>
     </div>
   );

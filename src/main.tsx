@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 import { ComfortModeProvider } from './context/ComfortModeContext.tsx'
 import { VisualPresetProvider } from './context/VisualPresetContext.tsx'
+import { NavCustomizationProvider } from './context/NavCustomizationContext.tsx'
 import './index.css'
 import App from './App.tsx'
 
@@ -18,7 +19,9 @@ createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <ComfortModeProvider>
         <VisualPresetProvider>
-          <App />
+          <NavCustomizationProvider>
+            <App />
+          </NavCustomizationProvider>
         </VisualPresetProvider>
       </ComfortModeProvider>
     </ErrorBoundary>

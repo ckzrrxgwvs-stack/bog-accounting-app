@@ -6,153 +6,14 @@ import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/services/api';
 import { LogoWithStatus } from '@/components/Logo';
 import { useServerMode } from '@/hooks/useServerMode';
-import {
-  LayoutDashboard,
-  BookOpen,
-  Layers,
-  CreditCard,
-  FileText,
-  Package,
-  Receipt,
-  BarChart3,
-  Table2,
-  MessageSquare,
-  LayoutGrid,
-  Sparkles,
-  ShoppingCart,
-  ClipboardList,
-  Settings,
-  Users,
-  LogOut,
-  Menu,
-  X,
-  FileCheck,
-  Landmark,
-  Building2,
-  UserCircle,
-  Lock,
-  PenLine,
-  Lightbulb,
-  Bot,
-  Link2,
-  FileSpreadsheet,
-  Search,
-  GraduationCap,
-  type LucideIcon,
-} from 'lucide-react';
+import { LogOut, Menu, Search, X } from 'lucide-react';
 import { useNeonThemeSync } from '@/hooks/useNeonAuraPalette';
 import { useCompanyPolicy } from '@/hooks/useCompanyPolicy';
 import { CommandPalette } from '@/components/CommandPalette';
 import { PiInfinityModal } from '@/components/PiInfinityModal';
 import { BusinessWorkspaceProvider, BusinessWorkspaceSwitcher } from '@/context/BusinessWorkspaceContext';
-
-type NavItem = {
-  name: string;
-  href: string;
-  icon: LucideIcon;
-  module: string;
-  hideWhenManualOps?: boolean;
-};
-
-type NavGroup = { label: string; items: NavItem[] };
-
-const navigationGroups: NavGroup[] = [
-  {
-    label: 'Overview',
-    items: [{ name: 'Dashboard', href: '/', icon: LayoutDashboard, module: 'dashboard' }],
-  },
-  {
-    label: 'Ledger',
-    items: [
-      { name: 'Chart of accounts', href: '/ledger/coa', icon: Layers, module: 'general_ledger' },
-      { name: 'Opening balances', href: '/ledger/opening-balances', icon: Landmark, module: 'general_ledger' },
-      { name: 'General Ledger', href: '/ledger', icon: BookOpen, module: 'general_ledger' },
-      { name: 'Period close', href: '/ledger/period-close', icon: Lock, module: 'general_ledger' },
-    ],
-  },
-  {
-    label: 'Receivables & payables',
-    items: [
-      { name: 'Customers', href: '/master/customers', icon: UserCircle, module: 'accounts_receivable' },
-      { name: 'Accounts Receivable', href: '/ar', icon: FileText, module: 'accounts_receivable' },
-      { name: 'Vendors', href: '/master/vendors', icon: Building2, module: 'accounts_payable' },
-      { name: 'Accounts Payable', href: '/ap', icon: CreditCard, module: 'accounts_payable' },
-    ],
-  },
-  {
-    label: 'Operations',
-    items: [
-      { name: 'Inventory', href: '/inventory', icon: Package, module: 'inventory' },
-      { name: 'Payroll', href: '/payroll', icon: Receipt, module: 'payroll' },
-      { name: 'CFDI (Mexico)', href: '/cfdi', icon: FileCheck, module: 'cfdi' },
-    ],
-  },
-  {
-    label: 'Reporting & tools',
-    items: [
-      { name: 'Reports', href: '/reports', icon: BarChart3, module: 'reports' },
-      { name: 'Data Studio', href: '/data-studio', icon: Table2, module: 'reports' },
-      { name: 'Office hub', href: '/office', icon: FileSpreadsheet, module: 'reports' },
-      { name: 'Bank connections', href: '/integrations/financial', icon: Link2, module: 'settings' },
-    ],
-  },
-  {
-    label: 'ERP',
-    items: [
-      { name: 'ERP hub', href: '/erp', icon: LayoutGrid, module: 'erp' },
-      {
-        name: 'ERP Assistant',
-        href: '/erp/assistant',
-        icon: Sparkles,
-        module: 'erp',
-        hideWhenManualOps: true,
-      },
-      { name: 'Purchase orders', href: '/erp/purchase-orders', icon: ShoppingCart, module: 'erp' },
-      { name: 'Sales orders', href: '/erp/sales-orders', icon: ClipboardList, module: 'erp' },
-    ],
-  },
-  {
-    label: 'Intelligence',
-    items: [
-      {
-        name: 'AI CPA Assistant',
-        href: '/ai-cpa',
-        icon: MessageSquare,
-        module: 'ai_cpa',
-        hideWhenManualOps: true,
-      },
-      {
-        name: 'Pi Academy',
-        href: '/academy',
-        icon: GraduationCap,
-        module: 'ai_cpa',
-      },
-    ],
-  },
-];
-
-const bottomNavigation = [
-  { name: 'Users', href: '/users', icon: Users, module: 'users' },
-  {
-    name: 'Agent operations',
-    href: '/agent-operations',
-    icon: Bot,
-    module: 'agent_org',
-  },
-  {
-    name: 'Product intelligence',
-    href: '/product-intelligence',
-    icon: Lightbulb,
-    module: 'product_intel',
-  },
-  {
-    name: 'Manual operations',
-    href: '/settings/manual-operations',
-    icon: PenLine,
-    module: '_executive_only',
-  },
-  { name: 'Settings', href: '/settings', icon: Settings, module: 'settings' },
-];
+import { useNavCustomization } from '@/context/NavCustomizationContext';
+import { NAV_CATALOG, NAV_GROUP_ORDER } from '@/lib/navCatalog';
 
 function navIsActive(pathname: string, href: string): boolean {
   if (href === '/') return pathname === '/';
@@ -163,6 +24,7 @@ export function MainLayout() {
   const location = useLocation();
   const { user, logout, hasModuleAccess } = useAuthStore();
   useNeonThemeSync();
+  const navCustomization = useNavCustomization();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { manualOperationsMode, loading: policyLoading } = useCompanyPolicy();
   const serverMode = useServerMode();
@@ -177,20 +39,23 @@ export function MainLayout() {
     user && (user.role === 'PRESIDENT' || user.role === 'CFO' || user.role === 'CONTROLLER')
   );
 
-  const filterNavItem = (item: NavItem) => {
+  const filterNavItem = (item: (typeof NAV_CATALOG)[number]) => {
+    if (!navCustomization.isVisible(item.id)) return false;
+    if (item.executiveOnly && !isExecutive) return false;
     if (!hasModuleAccess(item.module)) return false;
     if (item.hideWhenManualOps && !policyLoading && manualOperationsMode) return false;
     return true;
   };
 
-  const filteredNavGroups = navigationGroups
-    .map((group) => ({ ...group, items: group.items.filter(filterNavItem) }))
-    .filter((group) => group.items.length > 0);
+  const rank = new Map(navCustomization.order.map((id, i) => [id, i]));
+  const sortedCatalog = [...NAV_CATALOG].sort((a, b) => (rank.get(a.id) ?? 999) - (rank.get(b.id) ?? 999));
 
-  const filteredBottomNav = bottomNavigation.filter((item) => {
-    if (item.module === '_executive_only') return isExecutive;
-    return hasModuleAccess(item.module);
-  });
+  const filteredNavGroups = NAV_GROUP_ORDER.map((label) => ({
+    label,
+    items: sortedCatalog.filter((item) => item.section === 'main' && item.group === label && filterNavItem(item)),
+  })).filter((group) => group.items.length > 0);
+
+  const filteredBottomNav = sortedCatalog.filter((item) => item.section === 'admin' && filterNavItem(item));
 
   const [testerDaysLeft, setTesterDaysLeft] = useState<number | null>(null);
 
@@ -265,9 +130,10 @@ export function MainLayout() {
               <p className="bog-section-label px-3 pb-1.5 pt-2 first:pt-1">{group.label}</p>
               {group.items.map((item) => {
                 const isActive = navIsActive(location.pathname, item.href);
+                const Icon = item.icon;
                 return (
                   <Link
-                    key={item.name}
+                    key={item.id}
                     to={item.href}
                     className={`group flex items-center gap-3 rounded-lg border-l-[3px] py-2 pl-2 pr-2 text-sm font-medium transition-colors duration-[1.2s] bog-focus-accent ${
                       isActive
@@ -278,7 +144,7 @@ export function MainLayout() {
                     onClick={() => setSidebarOpen(false)}
                   >
                     <span className="flex flex-1 items-center">
-                      <item.icon
+                      <Icon
                         size={18}
                         className="shrink-0 text-zinc-500 transition-colors duration-[1.2s] group-hover:text-zinc-300"
                         style={isActive ? { color: 'var(--bog-neon)' } : undefined}
@@ -298,16 +164,17 @@ export function MainLayout() {
           <div className="space-y-0.5">
             {filteredBottomNav.map((item) => {
               const isActive = navIsActive(location.pathname, item.href);
+              const Icon = item.icon;
               return (
                 <Link
-                  key={item.name}
+                  key={item.id}
                   to={item.href}
                   className={`flex items-center gap-3 rounded-lg py-2 pl-3 pr-2 text-sm transition-colors ${
                     isActive ? 'bg-white/[0.08] text-white' : 'text-zinc-500 hover:bg-white/[0.05] hover:text-white'
                   }`}
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <item.icon size={18} className="shrink-0 opacity-80" />
+                  <Icon size={18} className="shrink-0 opacity-80" />
                   <span className="truncate">{item.name}</span>
                 </Link>
               );
