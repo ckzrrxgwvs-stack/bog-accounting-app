@@ -37,10 +37,13 @@ import {
   Link2,
   FileSpreadsheet,
   Search,
+  GraduationCap,
   type LucideIcon,
 } from 'lucide-react';
+import { useNeonThemeSync } from '@/hooks/useNeonAuraPalette';
 import { useCompanyPolicy } from '@/hooks/useCompanyPolicy';
 import { CommandPalette } from '@/components/CommandPalette';
+import { PiInfinityModal } from '@/components/PiInfinityModal';
 import { BusinessWorkspaceProvider, BusinessWorkspaceSwitcher } from '@/context/BusinessWorkspaceContext';
 
 type NavItem = {
@@ -118,6 +121,12 @@ const navigationGroups: NavGroup[] = [
         module: 'ai_cpa',
         hideWhenManualOps: true,
       },
+      {
+        name: 'CPA Academy',
+        href: '/academy',
+        icon: GraduationCap,
+        module: 'ai_cpa',
+      },
     ],
   },
 ];
@@ -153,6 +162,7 @@ function navIsActive(pathname: string, href: string): boolean {
 export function MainLayout() {
   const location = useLocation();
   const { user, logout, hasModuleAccess } = useAuthStore();
+  useNeonThemeSync();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { manualOperationsMode, loading: policyLoading } = useCompanyPolicy();
   const serverMode = useServerMode();
@@ -210,6 +220,7 @@ export function MainLayout() {
     <BusinessWorkspaceProvider>
     <div className="min-h-screen bg-bog-paper text-bog-ink">
       <CommandPalette />
+      <PiInfinityModal />
       {user?.isTester && testerDaysLeft != null ? (
         <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-950">
           <strong>Family &amp; friends preview</strong> — BOG is still in development. {testerDaysLeft} day
@@ -258,17 +269,19 @@ export function MainLayout() {
                   <Link
                     key={item.name}
                     to={item.href}
-                    className={`group flex items-center gap-3 rounded-lg border-l-[3px] py-2 pl-2 pr-2 text-sm font-medium transition-colors bog-focus-accent ${
+                    className={`group flex items-center gap-3 rounded-lg border-l-[3px] py-2 pl-2 pr-2 text-sm font-medium transition-colors duration-[1.2s] bog-focus-accent ${
                       isActive
-                        ? 'border-[hsl(var(--bog-accent))] bg-white/[0.08] text-white shadow-inner shadow-black/20'
+                        ? 'border-[var(--bog-neon)] bg-white/[0.08] text-white shadow-inner shadow-black/20'
                         : 'border-transparent text-zinc-400 hover:border-zinc-600 hover:bg-white/[0.05] hover:text-white'
                     }`}
+                    style={isActive ? { boxShadow: `inset 2px 0 0 var(--bog-neon), inset 0 0 0 1px rgba(255,255,255,0.04)` } : undefined}
                     onClick={() => setSidebarOpen(false)}
                   >
                     <span className="flex flex-1 items-center">
                       <item.icon
                         size={18}
-                        className={`shrink-0 ${isActive ? 'text-[hsl(var(--bog-accent))]' : 'text-zinc-500 group-hover:text-zinc-300'}`}
+                        className="shrink-0 text-zinc-500 transition-colors duration-[1.2s] group-hover:text-zinc-300"
+                        style={isActive ? { color: 'var(--bog-neon)' } : undefined}
                         strokeWidth={isActive ? 2.25 : 2}
                       />
                       <span className="ml-3 truncate">{item.name}</span>
@@ -350,6 +363,7 @@ export function MainLayout() {
               <span className="hidden font-figures sm:inline">⌘K</span>
             </button>
           </div>
+          <div className="bog-neon-rule" aria-hidden />
         </header>
 
         <main className="min-h-[calc(100vh-3.5rem)] bog-main-content">

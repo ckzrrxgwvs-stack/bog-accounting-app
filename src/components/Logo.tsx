@@ -92,6 +92,26 @@ function NeonAuraFrame({
     >
       <span
         aria-hidden
+        className="bog-neon-rays pointer-events-none absolute rounded-full"
+        style={{
+          inset: -pad * 0.1,
+          background: `repeating-conic-gradient(from 0deg, ${primary}e0 0deg, ${primary}e0 1.4deg, transparent 1.4deg, transparent 9deg)`,
+          WebkitMaskImage: 'radial-gradient(circle, transparent 24%, #000 42%, #000 62%, transparent 82%)',
+          maskImage: 'radial-gradient(circle, transparent 24%, #000 42%, #000 62%, transparent 82%)',
+        }}
+      />
+      <span
+        aria-hidden
+        className="bog-neon-rays-rev pointer-events-none absolute rounded-full"
+        style={{
+          inset: pad * 0.05,
+          background: `repeating-conic-gradient(from 4deg, ${secondary}b3 0deg, ${secondary}b3 0.9deg, transparent 0.9deg, transparent 6deg)`,
+          WebkitMaskImage: 'radial-gradient(circle, transparent 30%, #000 46%, transparent 80%)',
+          maskImage: 'radial-gradient(circle, transparent 30%, #000 46%, transparent 80%)',
+        }}
+      />
+      <span
+        aria-hidden
         className="bog-neon-aura-outer pointer-events-none absolute rounded-2xl transition-[box-shadow,opacity,transform] duration-[2s] ease-in-out"
         style={{
           inset: pad * 0.35,
@@ -215,6 +235,20 @@ export function LogoWithStatus({ status = 'active' }: LogoWithStatusProps) {
           >
             π
           </span>
+          <button
+            type="button"
+            title="See π go on forever"
+            aria-label="Show the infinite digits of pi"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              window.dispatchEvent(new Event('bog:open-pi'));
+            }}
+            className="font-figures text-[11px] leading-none text-zinc-500 transition-colors hover:text-white"
+            style={{ textShadow: `0 0 6px ${aura.primary}55` }}
+          >
+            ∞
+          </button>
         </div>
         <span className={`truncate text-[11px] ${config.textColor}`}>{config.label}</span>
       </div>

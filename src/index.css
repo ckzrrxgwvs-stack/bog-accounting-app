@@ -12,6 +12,11 @@
     --bog-rule: 240 5% 84%;
     --bog-accent: 217 91% 53%;
     --bog-accent-muted: 217 32% 94%;
+    /* Live neon (synced to the logo cube at runtime; defaults near accent blue) */
+    --bog-neon: #2f7bf6;
+    --bog-neon-2: #00d4ff;
+    --bog-neon-rgb: 47, 123, 246;
+    --bog-neon-soft: rgba(47, 123, 246, 0.14);
     /* Stronger rules for hierarchy (lines where structure matters) */
     --bog-line: 240 5% 84%;
     --bog-line-strong: 240 5% 72%;
@@ -79,14 +84,31 @@
     @apply rounded-lg border border-[hsl(var(--bog-line-strong))] bg-white shadow-sm;
   }
 
-  /* Emphasis strip (totals, KPI focus, primary actions row) */
+  /* Emphasis strip (totals, KPI focus, primary actions row) — follows the live cube neon */
   .bog-highlight-strip {
-    @apply border-l-[3px] border-[hsl(var(--bog-accent))] bg-sky-50/90 pl-3;
+    border-left: 3px solid var(--bog-neon);
+    background-color: var(--bog-neon-soft);
+    @apply pl-3 transition-[border-color,background-color] duration-[2s] ease-in-out;
   }
 
   /* Key divider — use under section titles or statement totals */
   .bog-keyline {
     @apply border-b-2 border-[hsl(var(--bog-line-key))];
+  }
+
+  /* Thin neon rule that tracks the logo cube color (header accent, section breaks) */
+  .bog-neon-rule {
+    height: 2px;
+    border: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(var(--bog-neon-rgb), 0.55) 18%,
+      var(--bog-neon) 50%,
+      rgba(var(--bog-neon-rgb), 0.55) 82%,
+      transparent 100%
+    );
+    transition: background 2s ease-in-out;
   }
 
   /* Interactive focus — links, inputs (accent, not full color flood) */
@@ -197,6 +219,35 @@
 
   .bog-neon-spark-delay {
     animation: bog-neon-spark-drift 3.4s ease-in-out infinite reverse;
+  }
+
+  /* Sun-ray aura: radiating spokes that slowly rotate + pulse behind the cube */
+  @keyframes bog-neon-rays-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes bog-neon-rays-pulse {
+    0%,
+    100% {
+      opacity: 0.45;
+    }
+    50% {
+      opacity: 0.85;
+    }
+  }
+
+  .bog-neon-rays {
+    animation:
+      bog-neon-rays-spin 18s linear infinite,
+      bog-neon-rays-pulse 4.2s ease-in-out infinite;
+  }
+
+  .bog-neon-rays-rev {
+    animation:
+      bog-neon-rays-spin 26s linear infinite reverse,
+      bog-neon-rays-pulse 5.6s ease-in-out infinite;
   }
 }
 

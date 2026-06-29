@@ -14,6 +14,7 @@ import { AccountsReceivable } from './pages/AccountsReceivable';
 import { Payments } from './pages/Payments';
 import { Reports } from './pages/Reports';
 import { AICPA } from './pages/AICPA';
+import { Academy } from './pages/Academy';
 import { Inventory } from './pages/Inventory';
 import { Payroll } from './pages/Payroll';
 import { CFDI } from './pages/CFDI';
@@ -88,6 +89,7 @@ function App() {
           <Route path="integrations/financial" element={<FinancialConnections />} />
           <Route path="office" element={<MicrosoftOfficeHub />} />
           <Route path="ai-cpa" element={<AICPA />} />
+          <Route path="academy" element={<Academy />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="payroll" element={<Payroll />} />
           <Route path="cfdi" element={<CFDI />} />

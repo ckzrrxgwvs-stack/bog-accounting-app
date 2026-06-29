@@ -77,3 +77,34 @@ export function useNeonAuraPalette() {
 
   return palette;
 }
+
+/** #rrggbb -> "r, g, b" channel string (for rgb()/rgba() with alpha). */
+function hexToRgbChannels(hex: string): string {
+  const m = hex.replace('#', '');
+  const full = m.length === 3 ? m.split('').map((c) => c + c).join('') : m;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return `${r}, ${g}, ${b}`;
+}
+
+/**
+ * Drives the app's structural accent lines from the live cube palette.
+ * Writes `--bog-neon` / `--bog-neon-rgb` / `--bog-neon-2` to <html> so the
+ * active nav rail, key rules, highlight strips, and header accent recolor in
+ * sync with the logo cube. Mount once near the app root.
+ */
+export function useNeonThemeSync(): NeonAuraPalette {
+  const palette = useNeonAuraPalette();
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const rgb = hexToRgbChannels(palette.primary);
+    root.style.setProperty('--bog-neon', palette.primary);
+    root.style.setProperty('--bog-neon-rgb', rgb);
+    root.style.setProperty('--bog-neon-2', palette.secondary);
+    root.style.setProperty('--bog-neon-soft', `rgba(${rgb}, 0.14)`);
+  }, [palette.primary, palette.secondary]);
+
+  return palette;
+}
