@@ -122,7 +122,7 @@ const navigationGroups: NavGroup[] = [
         hideWhenManualOps: true,
       },
       {
-        name: 'CPA Academy',
+        name: 'Pi Academy',
         href: '/academy',
         icon: GraduationCap,
         module: 'ai_cpa',
