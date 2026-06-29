@@ -88,7 +88,10 @@
   .bog-highlight-strip {
     border-left: 3px solid var(--bog-neon);
     background-color: var(--bog-neon-soft);
-    @apply pl-3 transition-[border-color,background-color] duration-[2s] ease-in-out;
+    padding-left: 0.75rem;
+    transition:
+      border-color 2s ease-in-out,
+      background-color 2s ease-in-out;
   }
 
   /* Key divider — use under section titles or statement totals */
