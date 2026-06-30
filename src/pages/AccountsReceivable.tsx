@@ -1,7 +1,7 @@
 // Accounts Receivable — BOG ledger workspace
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Search, Eye, Edit, DollarSign, Clock, AlertCircle, BookMarked } from 'lucide-react';
 import {
   ModuleWorkspace,
@@ -39,11 +39,24 @@ const controlClass =
   'w-full rounded-lg border border-bog-rule bg-white px-4 py-2 text-sm text-bog-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--bog-accent))]/25';
 
 export function AccountsReceivable() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { functionalCurrency, useMultiCurrency } = useCompanyFx();
+  const [flash, setFlash] = useState<string | null>(
+    (location.state as { flash?: string } | null)?.flash ?? null
+  );
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [postingId, setPostingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const stateFlash = (location.state as { flash?: string } | null)?.flash;
+    if (stateFlash) {
+      setFlash(stateFlash);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.pathname, location.state, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -182,6 +195,15 @@ export function AccountsReceivable() {
         </>
       }
     >
+      {flash && (
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          {flash}
+          <button type="button" className="ml-3 text-xs font-medium underline" onClick={() => setFlash(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {loadError && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {loadError} — showing empty list.

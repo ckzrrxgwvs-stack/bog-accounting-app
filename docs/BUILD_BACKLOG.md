@@ -43,9 +43,8 @@ View queue: `GET /api/agent-org/work` (President/CFO JWT) or Prisma `AgentWorkIt
 
 ## Next backlog (deferred)
 
-- **deploy-2026-06-29** — JE composer + login + go-live fixes → **ready to push** (see `docs/DEPLOY_2026-06-29.md`)
-- **P0 JE composer** — ✅ DONE (2026-06-29): `/ledger/new` → `JournalEntryComposer`
-- AR/AP invoice create flows (P0 next)
+- **deploy-2026-06-29** — JE composer + login + go-live fixes → ✅ production live
+- **P0 AR/AP invoice composer** — ✅ DONE (2026-06-30): `/ar/new`, `/ap/new` → `InvoiceComposer`
 - Live Plaid/MX/PayPal OAuth (Human approval)
 - Auto-reconcile bank lines to GL
 - Period close audit log UI surfacing

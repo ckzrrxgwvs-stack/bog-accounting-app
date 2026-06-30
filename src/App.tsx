@@ -5,6 +5,7 @@ import { MainLayout } from './components/layout/MainLayout';
 import { Dashboard } from './pages/Dashboard';
 import { Ledger } from './pages/Ledger';
 import { JournalEntryComposer } from './pages/JournalEntryComposer';
+import { InvoiceComposer } from './pages/InvoiceComposer';
 import { ChartOfAccounts } from './pages/ChartOfAccounts';
 import { OpeningBalances } from './pages/OpeningBalances';
 import { PeriodClose } from './pages/PeriodClose';
@@ -81,9 +82,9 @@ function App() {
           <Route path="ledger" element={<Ledger />} />
           <Route path="ledger/new" element={<JournalEntryComposer />} />
           <Route path="ap" element={<AccountsPayable />} />
-          <Route path="ap/new" element={<AccountsPayable />} />
+          <Route path="ap/new" element={<InvoiceComposer variant="AP" />} />
           <Route path="ar" element={<AccountsReceivable />} />
-          <Route path="ar/new" element={<AccountsReceivable />} />
+          <Route path="ar/new" element={<InvoiceComposer variant="AR" />} />
           <Route path="payments" element={<Payments />} />
           <Route path="reports" element={<Reports />} />
           <Route path="data-studio" element={<DataStudio />} />
