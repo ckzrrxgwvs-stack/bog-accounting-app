@@ -39,6 +39,7 @@ import { ensureDatabaseSchema, isSchemaReady } from './services/ensureDatabaseSc
 import { bankFeedsRouter } from './routes/bankFeeds';
 import { financialConnectionsRouter } from './routes/financialConnections';
 import { officeRouter } from './routes/office';
+import { documentsRouter } from './routes/documents';
 import { setupRouter } from './routes/setup';
 import { portfolioRouter } from './routes/portfolio';
 import { testerInvitesRouter } from './routes/testerInvites';
@@ -109,6 +110,7 @@ app.use('/api/connectors/robinhood', robinhoodConnectorRouter);
 app.use('/api/bank-feeds', bankFeedsRouter);
 app.use('/api/financial-connections', financialConnectionsRouter);
 app.use('/api/office', officeRouter);
+app.use('/api/documents', documentsRouter);
 app.use('/api/setup', setupRouter);
 app.use('/api/portfolio', portfolioRouter);
 app.use('/api/tester-invites', testerInvitesRouter);

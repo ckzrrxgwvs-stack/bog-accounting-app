@@ -30,6 +30,7 @@ import {
   Link2,
   FileSpreadsheet,
   GraduationCap,
+  Mail,
 } from 'lucide-react';
 
 export type NavCatalogItem = {
@@ -59,6 +60,7 @@ export const NAV_CATALOG: NavCatalogItem[] = [
   { id: 'cfdi', name: 'CFDI (Mexico)', href: '/cfdi', icon: FileCheck, group: 'Operations', section: 'main', module: 'cfdi' },
   { id: 'reports', name: 'Reports', href: '/reports', icon: BarChart3, group: 'Reporting & tools', section: 'main', module: 'reports' },
   { id: 'data-studio', name: 'Data Studio', href: '/data-studio', icon: Table2, group: 'Reporting & tools', section: 'main', module: 'reports' },
+  { id: 'documents', name: 'Document Studio', href: '/documents', icon: Mail, group: 'Reporting & tools', section: 'main', module: 'reports' },
   { id: 'office', name: 'Office hub', href: '/office', icon: FileSpreadsheet, group: 'Reporting & tools', section: 'main', module: 'reports' },
   { id: 'bank-connections', name: 'Bank connections', href: '/integrations/financial', icon: Link2, group: 'Reporting & tools', section: 'main', module: 'settings' },
   { id: 'erp-hub', name: 'ERP hub', href: '/erp', icon: LayoutGrid, group: 'ERP', section: 'main', module: 'erp' },

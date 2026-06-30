@@ -34,6 +34,7 @@ import { ErpAssistant } from './pages/ErpAssistant';
 import { DataStudio } from './pages/DataStudio';
 import { FinancialConnections } from './pages/FinancialConnections';
 import { MicrosoftOfficeHub } from './pages/MicrosoftOfficeHub';
+import { DocumentStudio } from './pages/DocumentStudio';
 import { Login } from './pages/Login';
 import { OwnerSetup } from './pages/OwnerSetup';
 import { TryInvite } from './pages/TryInvite';
@@ -90,6 +91,7 @@ function App() {
           <Route path="data-studio" element={<DataStudio />} />
           <Route path="integrations/financial" element={<FinancialConnections />} />
           <Route path="office" element={<MicrosoftOfficeHub />} />
+          <Route path="documents" element={<DocumentStudio />} />
           <Route path="ai-cpa" element={<AICPA />} />
           <Route path="academy" element={<Academy />} />
           <Route path="inventory" element={<Inventory />} />

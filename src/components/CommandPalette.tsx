@@ -44,6 +44,7 @@ const NAV_ITEMS = [
   { label: 'CFDI (Mexico)', href: '/cfdi', icon: FileCheck, keywords: 'mexico tax cfdi' },
   { label: 'Reports', href: '/reports', icon: BarChart3, keywords: 'financial statements pnl balance' },
   { label: 'Data Studio', href: '/data-studio', icon: Table2, keywords: 'pivot analysis' },
+  { label: 'Document Studio', href: '/documents', icon: FileSpreadsheet, keywords: 'mail letter brand report pdf compose' },
   { label: 'Office hub', href: '/office', icon: FileSpreadsheet, keywords: 'excel word export import' },
   { label: 'Bank connections', href: '/integrations/financial', icon: Link2, keywords: 'bank plaid paypal' },
   { label: 'ERP hub', href: '/erp', icon: LayoutGrid, keywords: 'erp operations' },

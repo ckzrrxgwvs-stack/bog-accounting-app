@@ -47,6 +47,7 @@ router.patch('/:id', async (req, res) => {
       'address',
       'phone',
       'email',
+      'logo',
       'useInventory',
       'usePayroll',
       'useMultiCurrency',

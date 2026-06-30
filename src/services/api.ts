@@ -465,6 +465,33 @@ class ApiClient {
     }>('/office/excel/import/journals', { method: 'POST', body: { base64, dryRun } });
   }
 
+  async getDocumentBrand() {
+    return this.request<{ brand: Record<string, unknown> }>('/documents/brand');
+  }
+
+  async downloadComposedMailDocx(body: {
+    subject: string;
+    recipientName: string;
+    recipientEmail?: string;
+    body: string;
+  }) {
+    const token = getAuthBearerToken();
+    const url = `${this.baseUrl}/documents/mail/docx`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `Letter export failed (${res.status})`);
+    }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'bog-letter.docx';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   async generateWordDocument(template: string, variables?: Record<string, string>) {
     const token = getAuthBearerToken();
     const url = `${this.baseUrl}/office/word/generate`;

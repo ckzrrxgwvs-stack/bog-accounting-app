@@ -45,6 +45,7 @@ View queue: `GET /api/agent-org/work` (President/CFO JWT) or Prisma `AgentWorkIt
 
 - **deploy-2026-06-29** — JE composer + login + go-live fixes → ✅ production live
 - **P0 AR/AP invoice composer** — ✅ DONE (2026-06-30): `/ar/new`, `/ap/new` → `InvoiceComposer`
+- **doc-studio-01** — ✅ DONE (2026-06-30): Document Studio mail + branded report print — see `docs/DOCUMENT_STUDIO.md`
 - Live Plaid/MX/PayPal OAuth (Human approval)
 - Auto-reconcile bank lines to GL
 - Period close audit log UI surfacing

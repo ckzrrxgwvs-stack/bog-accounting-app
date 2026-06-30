@@ -488,3 +488,32 @@ img {
 .fixed {
   position: fixed;
 }
+
+/* Document Studio — print / save as PDF with letterhead */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .bog-print-document,
+  .bog-print-document * {
+    visibility: visible;
+  }
+
+  .bog-print-document {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0.5in !important;
+  }
+
+  aside,
+  header,
+  footer,
+  .bog-no-print {
+    display: none !important;
+  }
+}

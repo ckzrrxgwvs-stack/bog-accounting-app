@@ -1,8 +1,9 @@
 // Financial reports — live API data per ledger book.
 
-import React, { useCallback, useState } from 'react';
-import { FileText, Download, Loader2 } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { FileText, Download, Loader2, Printer } from 'lucide-react';
 import { ModuleWorkspace } from '@/components/layout/ModuleWorkspace';
+import { BrandLetterhead, type BrandKitView } from '@/components/documents/BrandLetterhead';
 import { api } from '@/services/api';
 import {
   LEDGER_BOOK_OPTIONS,
@@ -47,6 +48,16 @@ export function Reports() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ReportPayload | null>(null);
+  const [brand, setBrand] = useState<BrandKitView | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await api.getDocumentBrand();
+      if (res.success && res.data) {
+        setBrand((res.data as { brand: BrandKitView }).brand);
+      }
+    })();
+  }, []);
 
   const bookParam = apiBookForLedger(ledger);
   const bookMeta = ledgerBookMeta(ledger);
@@ -348,6 +359,15 @@ export function Reports() {
           </button>
           <button
             type="button"
+            onClick={() => window.print()}
+            disabled={!data}
+            className="inline-flex items-center rounded-lg border border-bog-rule bg-white px-4 py-2 text-sm font-medium text-bog-ink shadow-sm transition-colors hover:bg-bog-sheet disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Printer size={18} className="mr-2" />
+            Print / PDF
+          </button>
+          <button
+            type="button"
             onClick={() => void exportCsv()}
             className="inline-flex items-center rounded-lg border border-bog-rule bg-white px-4 py-2 text-sm font-medium text-bog-ink shadow-sm transition-colors hover:bg-bog-sheet"
           >
@@ -357,9 +377,16 @@ export function Reports() {
         </div>
       </div>
 
-      <div className="bog-statement-card p-6">
+      <div id="bog-report-print-root" className="bog-statement-card bog-print-document p-6">
+        {brand && (
+          <BrandLetterhead
+            brand={brand}
+            subtitle={`${previewTitle} · ${bookMeta.label} · ${periodLabel}`}
+            className="mb-6"
+          />
+        )}
         <div className="mb-4 flex flex-col gap-1 border-b border-bog-rule pb-4 sm:flex-row sm:items-baseline sm:justify-between">
-          <h2 className="text-lg font-semibold text-bog-ink">Preview · {previewTitle}</h2>
+          <h2 className="text-lg font-semibold text-bog-ink">{previewTitle}</h2>
           <span className="font-figures text-sm text-zinc-500">
             {bookMeta.label} · {periodLabel} · USD
           </span>
