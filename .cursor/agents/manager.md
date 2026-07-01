@@ -39,6 +39,9 @@ You are the **BOG Program Manager**. You orchestrate accounting domain agents an
 | Connector / schema | 6 | `@startup_backend_architect` |
 | Dashboard / wizard UI | 7 | `@senior_frontend_engineer` |
 | UI polish / icons / layout overlap | — | `@aesthetics_agent` → 7 → `@qa_engineer` |
+| What to sell / launch / clone / repeat | — | `@clone_strategist` → execution agents (Human YES) |
+| Short-form hooks / scripts / UGC | — | `@shortform_content_agent` → `@qa_engineer` |
+| Play + content | — | `@clone_strategist` → `@shortform_content_agent` → implementers |
 | Face I vs II scope | 8 | `@technical_lead` |
 | Pre-deploy / auth | 9 | `@security_auditor` |
 | CI/CD Render | 10 | `@senior_devops_engineer` |
