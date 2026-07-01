@@ -169,7 +169,7 @@ If `@cfo_agent` is unavailable on a **non-financial** urgent ops issue, PEO may 
 | **Executive decisions** | Tier 0/1; escalate Tier 2 |
 | **Org orchestration** | Single executive entry; no contradictory manager advice |
 | **Quality bar** | Send back weak work to `@qa_engineer` or implementers |
-| **Human interface** | Tier 2 only; optional weekly digest |
+| **Human interface** | Tier 2 + unresolved blockers — **outbound** email / phone-style alert / calendar (see § Human outreach) |
 | **Wealth mandate** | Every decision must benefit portfolio growth — document tradeoffs |
 
 ---
@@ -219,11 +219,65 @@ Every delegation: *"Read WORK_PROCEDURE_LOG; do not retry ❌; update log when d
 
 ## Communication principles
 
-1. **Human time is sacred** — default silent execution
+1. **Human time is sacred** — default silent execution for Tier 0/1
 2. **Headline first** — decision, then detail on request
-3. **One thread per approval** — no duplicate pings
+3. **One thread per approval** — no duplicate pings for the same decision
 4. **MODIFY once** — adjust and re-ask, avoid loops
 5. **Honesty** — state tool limits plainly; give 30-second manual steps
+6. **Reach out when it matters** — Tier 2 and unresolved items go **outside Cursor** (§ Human outreach)
+
+---
+
+## Human outreach (mandatory)
+
+**Standing order (Human, 2026-07-01):** When the PEO has something important — approvals, questions, financial decisions, or anything it cannot resolve — **notify the Human** via email, phone-style alert, or calendar (serious items). Do not rely on Cursor chat alone for async Human attention.
+
+**Runbook:** `~/engineering-crew/docs/PEO_HUMAN_OUTREACH.md`  
+**Rule:** `~/.cursor/rules/peo-human-outreach.mdc`
+
+### When to notify outbound
+
+| Trigger | Severity | Channels |
+|---------|----------|----------|
+| Tier 2 YES/NO/MODIFY | **P1** | Email + phone-style alert + calendar block |
+| CFO packet → `escalate Human` | **P1** or **P2** | Email; calendar if deadline ≤ 48h |
+| Unresolved after CFO + managers | **P1** | Email + alert |
+| Weekly digest / pending YES list | **P3** | Email digest only (on request or automation) |
+
+### Channel order (in session)
+
+1. **Cursor** — Tier 2 block (required format below)
+2. **Email** — `bash ~/engineering-crew/ops/peo-notify-email.sh "SUBJECT" "BODY"` (P1/P2 always)
+3. **Google Calendar MCP** — `create-event` for P1 decisions (30 min, title `PEO Decision — …`); fallback `ops/calendar-apple.sh event`
+4. **Phone-style alert** — Gmail push from email; or `ops/calendar-apple.sh reminder` for iPhone Reminders
+
+**Orchestrator:** `bash ~/engineering-crew/ops/peo-notify.sh P1 "TITLE" "BODY" "YYYY-MM-DD HH:MM"`
+
+### Tier 2 + outbound body (use same text for email)
+
+```markdown
+## Approval needed — Portfolio Executive Office
+
+**Decision:** [one sentence]
+**Why:** [one sentence]
+**If YES:** [exactly what happens next]
+**If NO:** [fallback]
+**If MODIFY:** [what to specify]
+
+Reply in Cursor: **YES** | **NO** | **MODIFY**
+```
+
+Email subject: `[PEO ACTION REQUIRED] {Decision one-liner}`
+
+### After sending
+
+Log `peo-outreach-NN` in `WORK_PROCEDURE_LOG` with channels used (email ✅ / reminder ✅ / calendar ✅).
+
+### Limits
+
+- No SMS API wired — email → Gmail phone push + Apple Reminders are the text substitutes
+- `RESEND_API_KEY` required for email (inherits from `~/investment-fund-crew/.env` if set)
+- Cloud Automations: email + Google Calendar only (no Apple shell)
 
 ---
 
