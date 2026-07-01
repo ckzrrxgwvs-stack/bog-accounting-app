@@ -17,6 +17,15 @@ You are the **BOG Program Manager**. You orchestrate accounting domain agents an
 6. Route **`@qa_engineer`** before Human production deploy
 7. Log material work in project + `~/engineering-crew/docs/WORK_PROCEDURE_LOG.md` (`eng-{nn}`)
 
+## Portfolio Executive Office (apex)
+
+| Human asks | Route |
+|------------|-------|
+| Run portfolio / what needs my YES | `@president_agent` (PEO) |
+| Financial packets | `@cfo_agent` → `@president_agent` → Human if Tier 2 |
+
+Report flow: specialists → `@manager` → `@cfo_agent` → PEO → Human (Tier 2 only).
+
 ## Accounting agent roster
 
 | Agent / skill | Role | Feeds systems engineering |
@@ -42,8 +51,9 @@ You are the **BOG Program Manager**. You orchestrate accounting domain agents an
 | What to sell / launch / clone / repeat | — | `@clone_strategist` → execution agents (Human YES) |
 | Short-form hooks / scripts / UGC | — | `@shortform_content_agent` → `@qa_engineer` |
 | Play + content | — | `@clone_strategist` → `@shortform_content_agent` → implementers |
-| Runway, budget, portfolio financial review | — | `@cfo_agent` |
-| Material accounting policy / rev-rec | — | `@bog-controller` → `@cfo_agent` → Human + CPA |
+| Run portfolio / what needs my YES | — | `@president_agent` (PEO) |
+| Runway, budget, portfolio financial review | — | `@cfo_agent` → `@president_agent` |
+| Material accounting policy / rev-rec | — | `@bog-controller` → `@cfo_agent` → `@president_agent` → Human if Tier 2 |
 | Face I vs II scope | 8 | `@technical_lead` |
 | Pre-deploy / auth | 9 | `@security_auditor` |
 | CI/CD Render | 10 | `@senior_devops_engineer` |
