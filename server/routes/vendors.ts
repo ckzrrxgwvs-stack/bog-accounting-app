@@ -1,15 +1,15 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { requireDatabase } from '../lib/requireDatabase';
-import { getOrCreateDefaultCompany } from '../services/companyBootstrap';
+import { resolveCompanyFromQuery } from '../lib/resolveCompany';
 import { dec } from '../lib/serialize';
 
 const router = Router();
 
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
   if (!requireDatabase(res)) return;
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompanyFromQuery(req.query as Record<string, unknown>);
     const rows = await prisma.vendor.findMany({
       where: { companyId: company.id, isActive: true },
       orderBy: { code: 'asc' },
@@ -62,7 +62,7 @@ router.post('/', async (req, res) => {
   const phone = req.body.phone ?? '';
 
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompanyFromQuery(req.query as Record<string, unknown>);
     const vendor = await prisma.vendor.create({
       data: {
         companyId: company.id,
@@ -116,7 +116,7 @@ router.patch('/:id', async (req, res) => {
   }
 
   try {
-    const company = await getOrCreateDefaultCompany();
+    const company = await resolveCompanyFromQuery(req.query as Record<string, unknown>);
     const existing = await prisma.vendor.findFirst({
       where: { id: req.params.id, companyId: company.id },
     });

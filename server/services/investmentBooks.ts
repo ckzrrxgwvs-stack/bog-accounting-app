@@ -41,6 +41,9 @@ const SHARED_INVESTMENT_COA: { code: string; name: string; type: AccountType }[]
   { code: '4610', name: 'Realized gain on securities', type: 'REVENUE' },
   { code: '4611', name: 'Realized loss on securities', type: 'EXPENSE' },
   { code: '6310', name: 'Brokerage commissions & fees', type: 'EXPENSE' },
+  { code: '6320', name: 'Software & subscriptions', type: 'EXPENSE' },
+  { code: '6330', name: 'Market data & research', type: 'EXPENSE' },
+  { code: '2000', name: 'Accounts payable', type: 'LIABILITY' },
 ];
 
 export function investmentCoaForBook(bookId: InvestmentBookId): { code: string; name: string; type: AccountType }[] {
