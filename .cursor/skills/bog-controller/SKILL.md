@@ -30,9 +30,11 @@ description: >-
 
 Set `REJECTED` + `statusMessage` reason; close related work item `DONE` or `CANCELLED`.
 
-## Escalate to CFO/human
+## Escalate to @cfo_agent / Human
 
 Policy changes, material adjustments, new revenue recognition pattern, tax nexus.
+
+Route to **`@cfo_agent`** (portfolio CFO — `~/engineering-crew/.cursor/agents/cfo_agent.md`, skill `cfo-portfolio`) for financial strategy and policy framing; Human + external CPA for filings and audit.
 
 ## Related code
 

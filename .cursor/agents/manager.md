@@ -42,6 +42,8 @@ You are the **BOG Program Manager**. You orchestrate accounting domain agents an
 | What to sell / launch / clone / repeat | — | `@clone_strategist` → execution agents (Human YES) |
 | Short-form hooks / scripts / UGC | — | `@shortform_content_agent` → `@qa_engineer` |
 | Play + content | — | `@clone_strategist` → `@shortform_content_agent` → implementers |
+| Runway, budget, portfolio financial review | — | `@cfo_agent` |
+| Material accounting policy / rev-rec | — | `@bog-controller` → `@cfo_agent` → Human + CPA |
 | Face I vs II scope | 8 | `@technical_lead` |
 | Pre-deploy / auth | 9 | `@security_auditor` |
 | CI/CD Render | 10 | `@senior_devops_engineer` |
